@@ -1,0 +1,28 @@
+/* src/styles/pages/Cart.css */
+.cart-container {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 24px;
+  min-height: 80vh;
+  background: #f8f9fc;
+  font-family: "Segoe UI", sans-serif;
+}
+
+.cart-content {
+  background: white;
+  padding: 40px;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+  text-align: center;
+}
+
+.cart-content h1 {
+  font-size: 2rem;
+  margin: 0 0 16px;
+  color: #1a1a1a;
+}
+
+.cart-content p {
+  color: #666;
+  font-size: 1rem;
+}

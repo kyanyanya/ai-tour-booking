@@ -1,0 +1,324 @@
+/* ========================================
+   LOGIN PAGE - CÂN BẰNG INPUT HOÀN HẢO
+   TÊN CLASS: lg-*
+   ======================================== */
+
+.lg-page {
+  min-height: 80vh;
+  background: linear-gradient(135deg, #f0f8ff 0%, #e6f3ff 100%);
+  padding: 40px 20px;
+  display: flex;
+  flex-direction: column;
+  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.lg-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 48px;
+  align-items: center;
+  flex: 1;
+}
+
+/* CỘT TRÁI */
+.lg-info {
+  color: #2c3e50;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.lg-info h1 {
+  font-size: 2.3rem;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.3;
+  color: #1a1a1a;
+}
+
+.lg-info p {
+  font-size: 1.05rem;
+  color: #555;
+  margin: 0 0 32px;
+  line-height: 1.65;
+}
+
+.lg-image {
+  height: 380px;
+  border-radius: 24px;
+  overflow: hidden;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.12);
+  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.lg-image:hover {
+  transform: translateY(-8px) scale(1.02);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.18);
+}
+
+.lg-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 0.4s ease;
+}
+
+.lg-image:hover .lg-img {
+  transform: scale(1.05);
+}
+
+/* CỘT PHẢI */
+.lg-form {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* FORM CARD - ĐỒNG NHẤT */
+.lg-card {
+  background: white;
+  padding: 40px 36px;
+  border-radius: 24px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.1);
+  width: 100%;
+  max-width: 420px;
+  border: 1px solid #e0e0e0;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+}
+
+/* INPUT GROUP - CÂN BẰNG HOÀN HẢO */
+.lg-input-group {
+  margin-bottom: 20px;
+}
+
+.lg-input-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-weight: 600;
+  color: #333;
+  font-size: 0.95rem;
+  text-align: left;
+}
+
+.lg-input-group input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 1.5px solid #ddd;
+  border-radius: 12px;
+  font-size: 1rem;
+  background: white;
+  color: #333;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.lg-input-group input::placeholder {
+  color: #aaa;
+}
+
+.lg-input-group input:focus {
+  outline: none;
+  border-color: #007bff;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
+}
+
+/* FORM OPTIONS */
+.lg-form-options {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+  font-size: 0.9rem;
+}
+
+.lg-checkbox-label {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  color: #555;
+  font-weight: 500;
+  user-select: none;
+}
+
+.lg-checkbox-label input {
+  opacity: 0;
+  position: absolute;
+  pointer-events: none;
+}
+
+.lg-checkmark {
+  width: 18px;
+  height: 18px;
+  border: 2px solid #ddd;
+  border-radius: 6px;
+  margin-right: 8px;
+  position: relative;
+  background: white;
+  transition: all 0.2s ease;
+}
+
+.lg-checkbox-label input:checked + .lg-checkmark {
+  background: #007bff;
+  border-color: #007bff;
+}
+
+.lg-checkbox-label input:checked + .lg-checkmark::after {
+  content: "✓";
+  position: absolute;
+  color: white;
+  font-weight: bold;
+  font-size: 12px;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+}
+
+.lg-forgot-link {
+  color: #007bff;
+  text-decoration: none;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.lg-forgot-link:hover {
+  color: #0056b3;
+  text-decoration: underline;
+}
+
+/* NÚT ĐĂNG NHẬP */
+.lg-btn-login {
+  width: 100%;
+  background: #007bff;
+  color: white;
+  border: none;
+  padding: 15px;
+  border-radius: 14px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  transition: all 0.3s ease;
+  margin-bottom: 24px;
+}
+
+.lg-btn-login:hover {
+  background: #0056b3;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 123, 255, 0.3);
+}
+
+.lg-btn-login svg {
+  transition: transform 0.2s ease;
+}
+
+.lg-btn-login:hover svg {
+  transform: translateX(4px);
+}
+
+/* SOCIAL LOGIN */
+.lg-social-login {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-bottom: 28px;
+}
+
+.lg-btn-social {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  padding: 13px;
+  border: 1.5px solid #ddd;
+  border-radius: 14px;
+  background: white;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.lg-btn-google:hover {
+  border-color: #4285f4;
+  background: #f8f9fa;
+}
+.lg-btn-facebook:hover {
+  border-color: #1877f2;
+  background: #f5faff;
+}
+
+.lg-btn-social svg {
+  width: 18px;
+  height: 18px;
+}
+
+/* ĐĂNG KÝ LINK */
+.lg-signup-link {
+  text-align: center;
+  color: #666;
+  font-size: 0.95rem;
+  margin: 0;
+}
+
+.lg-signup-link a {
+  color: #007bff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.lg-signup-link a:hover {
+  text-decoration: underline;
+  color: #0056b3;
+}
+
+.lg-error {
+  color: #e74c3c;
+  font-size: 0.9rem;
+  margin: 8px 0 16px;
+  text-align: center;
+  font-weight: 500;
+}
+
+/* RESPONSIVE */
+@media (max-width: 992px) {
+  .lg-container {
+    grid-template-columns: 1fr;
+    gap: 40px;
+    text-align: center;
+  }
+  .lg-info {
+    order: 2;
+  }
+  .lg-form {
+    order: 1;
+  }
+  .lg-image {
+    height: 300px;
+    margin: 0 auto;
+    max-width: 500px;
+  }
+  .lg-card {
+    max-width: 460px;
+  }
+}
+
+@media (max-width: 576px) {
+  .lg-page {
+    padding: 20px 16px;
+  }
+  .lg-info h1 {
+    font-size: 1.9rem;
+  }
+  .lg-card {
+    padding: 36px 28px;
+    border-radius: 22px;
+  }
+}

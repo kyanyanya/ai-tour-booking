@@ -1,0 +1,730 @@
+/* ========================================
+   PARTNER DASHBOARD - pd-*
+   ======================================== */
+
+.pd-container {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 24px;
+    background: #f8f9fc;
+    min-height: 100vh;
+    font-family: "Segoe UI", sans-serif;
+}
+
+/* TOPBAR */
+.pd-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 32px;
+    flex-wrap: wrap;
+    gap: 16px;
+}
+
+.pd-title {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin: 0;
+}
+
+.pd-subtitle {
+    color: #666;
+    font-size: 0.95rem;
+    margin: 4px 0 0;
+}
+
+.pd-topbar-right {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+}
+
+.pd-period {
+    padding: 10px 16px;
+    border: 1.5px solid #ddd;
+    border-radius: 12px;
+    background: white;
+    font-size: 0.9rem;
+}
+
+.pd-btn-create {
+    background: #4361ee;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.3s ease;
+}
+
+.pd-btn-create:hover {
+    background: #3651d4;
+    transform: translateY(-1px);
+}
+
+/* TABS */
+.pd-tabs {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 32px;
+    border-bottom: 1px solid #e0e0e0;
+    overflow-x: auto;
+    padding-bottom: 8px;
+}
+
+.pd-tab {
+    padding: 12px 20px;
+    background: transparent;
+    border: none;
+    font-weight: 600;
+    color: #666;
+    cursor: pointer;
+    border-radius: 12px 12px 0 0;
+    transition: all 0.3s ease;
+    white-space: nowrap;
+}
+
+.pd-tab.active {
+    background: #4361ee;
+    color: white;
+}
+
+.pd-tab:hover:not(.active) {
+    background: #f0f2ff;
+    color: #4361ee;
+}
+
+/* STATS GRID */
+.pd-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 20px;
+    margin-bottom: 32px;
+}
+
+.pd-stat-card {
+    background: white;
+    padding: 24px;
+    border-radius: 16px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    transition: transform 0.3s ease;
+}
+
+.pd-stat-card:hover {
+    transform: translateY(-4px);
+}
+
+.pd-stat-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 12px;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    color: white;
+    font-size: 1.1rem;
+}
+
+.pd-stat-icon.bookings {
+    background: #10b981;
+    width: 100px;
+}
+
+.pd-stat-icon.revenue {
+    background: #f59e0b;
+    width: 100px;
+}
+
+.pd-stat-icon.customers {
+    background: #3b82f6;
+    width: 100px;
+}
+
+.pd-stat-icon.reviews {
+    background: #8b5cf6;
+    width: 100px;
+}
+
+.pd-stat-value {
+    font-size: 2rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 4px;
+}
+
+.pd-stat-label {
+    color: #666;
+    font-size: 0.9rem;
+    margin-bottom: 8px;
+}
+
+.pd-stat-change {
+    font-weight: 600;
+    font-size: 0.85rem;
+}
+
+.pd-stat-change.up {
+    color: #10b981;
+}
+
+.pd-stat-change.down {
+    color: #ef4444;
+}
+
+/* AI CARD */
+.pd-ai-card {
+    background: linear-gradient(135deg, #667eea, #764ba2);
+    color: white;
+    padding: 24px;
+    border-radius: 16px;
+    margin-bottom: 32px;
+}
+
+.pd-ai-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.pd-ai-icon {
+    width: 36px;
+    height: 36px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+}
+
+.pd-ai-card h3 {
+    margin: 0;
+    font-size: 1.1rem;
+}
+
+.pd-ai-card p {
+    margin: 12px 0;
+    line-height: 1.6;
+}
+
+.pd-btn-apply {
+    background: white;
+    color: #667eea;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 12px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+/* TABLE */
+.pd-table-wrapper {
+    background: white;
+    border-radius: 16px;
+    padding: 24px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
+    overflow-x: auto;
+}
+
+.pd-table-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 20px;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.pd-table-header h3 {
+    margin: 0;
+    font-size: 1.2rem;
+    color: #1a1a1a;
+}
+
+.pd-search {
+    padding: 10px 16px;
+    border: 1.5px solid #ddd;
+    border-radius: 12px;
+    width: 220px;
+    font-size: 0.9rem;
+}
+
+.pd-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.pd-table th {
+    text-align: left;
+    padding: 14px 16px;
+    background: #f8f9fa;
+    font-weight: 600;
+    color: #444;
+    font-size: 0.9rem;
+}
+
+.pd-table td {
+    padding: 16px;
+    border-bottom: 1px solid #eee;
+}
+
+.pd-tour-cell {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.pd-tour-img {
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.pd-tour-cell div {
+    font-weight: 600;
+}
+
+.pd-tour-cell small {
+    color: #999;
+    font-size: 0.8rem;
+}
+
+/* STATUS */
+.pd-status {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.pd-status.ongoing {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+.pd-status.pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.pd-status.soldout {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.pd-status.confirmed {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.pd-status.cancelled {
+    background: #f3f4f6;
+    color: #4b5563;
+}
+
+/* BUTTONS */
+.pd-btn {
+    padding: 6px 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    margin-right: 6px;
+    transition: all 0.3s ease;
+}
+
+.pd-btn.edit {
+    background: #e0e7ff;
+    color: #4338ca;
+}
+
+.pd-btn.stop {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+.pd-btn.start {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.pd-btn.view {
+    background: #f0f2ff;
+    color: #4361ee;
+}
+
+.pd-btn.confirm {
+    background: #dcfce7;
+    color: #166534;
+}
+
+.pd-btn.contact {
+    background: #e0e7ff;
+    color: #4338ca;
+}
+
+.pd-btn.reject {
+    background: #fee2e2;
+    color: #991b1b;
+}
+
+/* PHÂN TÍCH */
+.pd-analytics-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 20px;
+    margin-bottom: 32px;
+}
+
+.pd-analytics-card {
+    background: #f8f9fc;
+    padding: 20px;
+    border-radius: 12px;
+    text-align: center;
+    border: 1px solid #e9ecef;
+}
+
+.pd-analytics-card h4 {
+    margin: 0 0 12px;
+    color: #666;
+    font-size: 0.9rem;
+}
+
+.pd-analytics-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 8px;
+}
+
+.pd-analytics-change {
+    font-weight: 600;
+    font-size: 0.8rem;
+}
+
+.pd-analytics-change.up {
+    color: #10b981;
+}
+
+.pd-analytics-change.down {
+    color: #ef4444;
+}
+
+.pd-chart-placeholder {
+    background: #f8f9fc;
+    padding: 24px;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+}
+
+.pd-chart-placeholder h4 {
+    margin: 0 0 16px;
+    color: #1a1a1a;
+}
+
+.pd-chart {
+    height: 200px;
+    background: white;
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #666;
+    border: 1px dashed #ddd;
+}
+
+/* THANH TOÁN */
+.pd-payment-summary {
+    margin-top: 32px;
+    padding: 20px;
+    background: #f8f9fc;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+}
+
+.pd-payment-summary h4 {
+    margin: 0 0 16px;
+    color: #1a1a1a;
+}
+
+.pd-summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+    gap: 16px;
+}
+
+.pd-summary-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 0;
+    border-bottom: 1px solid #e9ecef;
+}
+
+.pd-summary-item:last-child {
+    border-bottom: none;
+}
+
+/* ĐÁNH GIÁ */
+.pd-review-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+}
+
+.pd-review-item {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    border: 1px solid #e9ecef;
+}
+
+.pd-review-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+}
+
+.pd-rating {
+    color: #f59e0b;
+    font-size: 1rem;
+}
+
+.pd-review-date {
+    color: #666;
+    font-size: 0.8rem;
+    margin-left: auto;
+}
+
+.pd-review-item p {
+    margin: 0 0 8px;
+    line-height: 1.5;
+}
+
+.pd-review-tour {
+    color: #4361ee;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+/* RESPONSIVE */
+@media (max-width: 992px) {
+    .pd-topbar {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pd-topbar-right {
+        justify-content: flex-end;
+    }
+
+    .pd-stats-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+
+    .pd-analytics-grid {
+        grid-template-columns: 1fr 1fr;
+    }
+}
+
+@media (max-width: 768px) {
+    .pd-container {
+        padding: 16px;
+    }
+
+    .pd-stats-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pd-analytics-grid {
+        grid-template-columns: 1fr;
+    }
+
+    .pd-table-header {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .pd-search {
+        width: 100%;
+    }
+
+    .pd-review-header {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+
+    .pd-review-date {
+        margin-left: 0;
+    }
+}
+
+
+/* ORDERS CONTAINER */
+.pd-orders-container {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+}
+
+.pd-table-actions {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+}
+
+.pd-badge {
+    padding: 6px 12px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.pd-badge.pending {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.pd-badge.confirmed {
+    background: #d1fae5;
+    color: #065f46;
+}
+
+/* CUSTOMER INFO */
+.pd-customer-info {
+    display: flex;
+    flex-direction: column;
+}
+
+.pd-customer-info strong {
+    font-weight: 600;
+    color: #1a1a1a;
+}
+
+.pd-customer-info small {
+    color: #666;
+    font-size: 0.8rem;
+    margin-top: 2px;
+}
+
+/* ACTION BUTTONS */
+.pd-action-buttons {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+.pd-action-buttons .pd-btn {
+    margin: 2px;
+    white-space: nowrap;
+}
+
+/* PAGINATION */
+.pd-pagination {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.pd-pagination-btn {
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    transition: all 0.3s ease;
+    min-width: 36px;
+    text-align: center;
+}
+
+.pd-pagination-btn:hover:not(.disabled):not(.active) {
+    background: #f8f9fa;
+    border-color: #4361ee;
+}
+
+.pd-pagination-btn.active {
+    background: #4361ee;
+    color: white;
+    border-color: #4361ee;
+}
+
+.pd-pagination-btn.disabled {
+    background: #f8f9fa;
+    color: #999;
+    cursor: not-allowed;
+    border-color: #eee;
+}
+
+.pd-pagination-ellipsis {
+    padding: 8px 4px;
+    color: #666;
+}
+
+/* VIEW ALL BUTTON */
+.pd-view-all {
+    display: flex;
+    justify-content: center;
+    margin-top: 16px;
+}
+
+.pd-btn.view-all {
+    background: #f8f9fa;
+    color: #4361ee;
+    border: 1px solid #4361ee;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.pd-btn.view-all:hover {
+    background: #4361ee;
+    color: white;
+}
+
+/* ADDITIONAL STATUS STYLES */
+.pd-status.completed {
+    background: #dcfce7;
+    color: #166534;
+}
+
+/* RESPONSIVE FOR ORDERS */
+@media (max-width: 768px) {
+    .pd-table-actions {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 12px;
+    }
+
+    .pd-action-buttons {
+        justify-content: center;
+    }
+
+    .pd-pagination {
+        flex-wrap: wrap;
+        gap: 4px;
+    }
+
+    .pd-pagination-btn {
+        padding: 6px 10px;
+        font-size: 0.8rem;
+        min-width: 32px;
+    }
+}
