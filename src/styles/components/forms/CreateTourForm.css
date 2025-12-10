@@ -1,0 +1,246 @@
+/* src/styles/components/forms/CreateTourForm.css */
+.create-tour-form {
+  background: white;
+  padding: 32px;
+  border-radius: 16px;
+  width: 580px;
+  max-width: 95vw;
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+  font-family: "Segoe UI", sans-serif;
+  scrollbar-width: thin;
+  scrollbar-color: #4361ee #f1f3f5;
+}
+
+.create-tour-form::-webkit-scrollbar {
+  width: 8px;
+}
+
+.create-tour-form::-webkit-scrollbar-track {
+  background: #f1f3f5;
+  border-radius: 10px;
+}
+
+.create-tour-form::-webkit-scrollbar-thumb {
+  background: #4361ee;
+  border-radius: 10px;
+}
+
+.create-tour-form h2 {
+  margin: 0 0 28px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  text-align: center;
+  color: #1a1a1a;
+  position: relative;
+}
+
+.create-tour-form h2::after {
+  content: "";
+  position: absolute;
+  bottom: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 60px;
+  height: 4px;
+  background: #4361ee;
+  border-radius: 2px;
+}
+
+/* Input & Textarea chung */
+.create-tour-form input,
+.create-tour-form textarea {
+  width: 100%;
+  padding: 13px 16px;
+  border: 1.8px solid #e0e0e0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  transition: all 0.3s ease;
+  background: #fdfdff;
+  box-sizing: border-box;
+}
+
+.create-tour-form input:focus,
+.create-tour-form textarea:focus {
+  outline: none;
+  border-color: #4361ee;
+  background: white;
+  box-shadow: 0 0 0 4px rgba(67, 97, 238, 0.15);
+}
+
+/* Dòng 2 cột: Giá + Địa điểm */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+/* Phần lịch trình */
+.itinerary-section {
+  margin: 28px 0;
+  padding: 24px;
+  background: linear-gradient(135deg, #f8f9ff 0%, #f0f2ff 100%);
+  border-radius: 16px;
+  border: 2px dashed #c3c9ff;
+}
+
+.itinerary-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.itinerary-header h3 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #333;
+}
+
+.btn-add-day {
+  background: #4361ee;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(67, 97, 238, 0.3);
+}
+
+.btn-add-day:hover {
+  background: #3651d4;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(67, 97, 238, 0.4);
+}
+
+/* Mỗi ngày trong lịch trình */
+.itinerary-day {
+  margin-bottom: 24px;
+  background: white;
+  padding: 18px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  position: relative;
+  animation: slideUp 0.3s ease-out;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.day-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: #4361ee;
+}
+
+.btn-remove-day {
+  background: #ef4444;
+  color: white;
+  border: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 1rem;
+  font-weight: bold;
+  transition: all 0.2s ease;
+}
+
+.btn-remove-day:hover {
+  background: #dc2626;
+  transform: scale(1.1);
+}
+
+/* Nút hành động */
+.form-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid #eee;
+}
+
+.btn-primary,
+.btn-cancel {
+  flex: 1;
+  padding: 15px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background: #4361ee;
+  color: white;
+  box-shadow: 0 4px 12px rgba(67, 97, 238, 0.4);
+}
+
+.btn-primary:hover {
+  background: #3651d4;
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(67, 97, 238, 0.5);
+}
+
+.btn-cancel {
+  background: #f8f9fc;
+  color: #666;
+  border: 1.5px solid #ddd;
+}
+
+.btn-cancel:hover {
+  background: #e9ecef;
+  color: #333;
+}
+
+/* Responsive */
+@media (max-width: 640px) {
+  .create-tour-form {
+    padding: 24px;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+
+  .itinerary-header {
+    flex-direction: column;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .btn-add-day {
+    width: 100%;
+  }
+
+  .form-actions {
+    flex-direction: column;
+  }
+
+  .btn-primary,
+  .btn-cancel {
+    width: 100%;
+  }
+}
