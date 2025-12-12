@@ -1,303 +1,670 @@
 // src/pages/AdminDashboard.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { Navigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import ConfirmModal from "../components/modals/ConfirmModal.jsx";
+import axios from "axios";
+import { toast } from "react-toastify";
 import "../styles/pages/AdminDashboard.css";
 
 const AdminDashboard = () => {
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState("overview");
+  const { user, session } = useAuth();
+  const [activeTab, setActiveTab] = useState("tours");
+  const [tours, setTours] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [loadingTours, setLoadingTours] = useState(false);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
 
-  if (!user || user.role !== "admin") {
-    return <Navigate to="/login" replace />;
-  }
+  // Modal xóa tour
+  const [deleteTourModal, setDeleteTourModal] = useState({
+    isOpen: false,
+    tourId: null,
+    tourName: "",
+    partnerId: null,
+  });
+
+  // Modal duyệt tour
+  const [approveTourModal, setApproveTourModal] = useState({
+    isOpen: false,
+    tourId: null,
+    tourName: "",
+    partnerId: null,
+  });
+
+  // Modal xóa 1 thông báo
+  const [deleteNotifModal, setDeleteNotifModal] = useState({
+    isOpen: false,
+    notifId: null,
+  });
+
+  // Modal XÓA TẤT CẢ thông báo
+  const [clearAllModal, setClearAllModal] = useState(false);
+
+  // Modal ĐÁNH DẤU ĐỌC TẤT CẢ
+  const [markAllReadModal, setMarkAllReadModal] = useState(false);
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  const fetchAllTours = useCallback(async () => {
+    if (!session?.access_token) return;
+    setLoadingTours(true);
+    try {
+      const { data } = await axios.get(
+        `${supabaseUrl}/rest/v1/tours?select=*,partner_name&order=created_at.desc`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      setTours(data || []);
+    } catch (err) {
+      console.error("Lỗi tải tour:", err);
+      toast.error("Không thể tải danh sách tour!");
+    } finally {
+      setLoadingTours(false);
+    }
+  }, [session?.access_token, supabaseUrl, anonKey]);
+
+  const fetchNotifications = useCallback(async () => {
+    if (!session?.access_token) return;
+    setLoadingNotifs(true);
+    try {
+      const { data } = await axios.get(
+        `${supabaseUrl}/rest/v1/admin_notifications?order=created_at.desc`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      setNotifications(data || []);
+    } catch (err) {
+      console.error("Lỗi tải thông báo:", err);
+      toast.error("Không thể tải thông báo!");
+    } finally {
+      setLoadingNotifs(false);
+    }
+  }, [session?.access_token, supabaseUrl, anonKey]);
+
+  // DUYỆT TOUR
+  const openApproveTourModal = (tour) => {
+    setApproveTourModal({
+      isOpen: true,
+      tourId: tour.id,
+      tourName: tour.name,
+      partnerId: tour.partner_id,
+    });
+  };
+
+  const confirmApproveTour = async () => {
+    const { tourId, tourName, partnerId } = approveTourModal;
+    try {
+      await axios.patch(
+        `${supabaseUrl}/rest/v1/tours?id=eq.${tourId}`,
+        { status: "APPROVED" },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      await axios.post(
+        `${supabaseUrl}/rest/v1/partner_notifications`,
+        {
+          to_partner_id: partnerId,
+          from_role: "admin",
+          from_id: user.id,
+          message: `Tour "${tourName}" đã được duyệt thành công!`,
+          type: "tour_approved",
+          tour_id: tourId,
+          status: "unread",
+        },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      toast.success("Đã duyệt tour và gửi thông báo cho Partner!");
+      fetchAllTours();
+    } catch (err) {
+      console.error("Lỗi duyệt tour:", err);
+      toast.error("Không thể duyệt tour!");
+    } finally {
+      setApproveTourModal({
+        isOpen: false,
+        tourId: null,
+        tourName: "",
+        partnerId: null,
+      });
+    }
+  };
+
+  // XÓA TOUR
+  const openDeleteTourModal = (tour) => {
+    setDeleteTourModal({
+      isOpen: true,
+      tourId: tour.id,
+      tourName: tour.name,
+      partnerId: tour.partner_id,
+    });
+  };
+
+  const confirmDeleteTour = async () => {
+    const { tourId, tourName, partnerId } = deleteTourModal;
+    try {
+      // Gửi thông báo trước
+      await axios.post(
+        `${supabaseUrl}/rest/v1/partner_notifications`,
+        {
+          to_partner_id: partnerId,
+          from_role: "admin",
+          from_id: user.id,
+          message: `Tour "${tourName}" đã bị Admin XÓA khỏi hệ thống.`,
+          type: "tour_deleted",
+          tour_id: tourId,
+          status: "unread",
+        },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Xóa tour sau
+      await axios.delete(`${supabaseUrl}/rest/v1/tours?id=eq.${tourId}`, {
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+
+      toast.success("Đã xóa tour và gửi thông báo cho Partner!");
+      fetchAllTours();
+    } catch (err) {
+      console.error("Lỗi xóa tour:", err);
+      toast.error("Không thể xóa tour!");
+    } finally {
+      setDeleteTourModal({
+        isOpen: false,
+        tourId: null,
+        tourName: "",
+        partnerId: null,
+      });
+    }
+  };
+
+  // ĐÁNH DẤU ĐỌC 1 THÔNG BÁO
+  const markAsRead = async (notifId) => {
+    try {
+      await axios.patch(
+        `${supabaseUrl}/rest/v1/admin_notifications?id=eq.${notifId}`,
+        { status: "read" },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notifId ? { ...n, status: "read" } : n))
+      );
+    } catch (err) {
+      console.error("Lỗi đánh dấu đã đọc:", err);
+    }
+  };
+
+  // ĐÁNH DẤU ĐỌC TẤT CẢ
+  const openMarkAllReadModal = () => {
+    if (unreadCount === 0) {
+      toast.info("Không có thông báo nào chưa đọc!");
+      return;
+    }
+    setMarkAllReadModal(true);
+  };
+
+  const confirmMarkAllRead = async () => {
+    try {
+      await axios.patch(
+        `${supabaseUrl}/rest/v1/admin_notifications`,
+        { status: "read" },
+        {
+          params: { status: "eq.unread" },
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      toast.success("Đã đánh dấu tất cả là đã đọc!");
+      fetchNotifications();
+    } catch (err) {
+      console.error("Lỗi đánh dấu tất cả:", err);
+      toast.error("Không thể đánh dấu tất cả!");
+    } finally {
+      setMarkAllReadModal(false);
+    }
+  };
+
+  // XÓA TẤT CẢ THÔNG BÁO
+  const openClearAllModal = () => {
+    if (notifications.length === 0) {
+      toast.info("Không có thông báo nào để xóa!");
+      return;
+    }
+    setClearAllModal(true);
+  };
+
+  const confirmClearAll = async () => {
+    try {
+      await axios.delete(`${supabaseUrl}/rest/v1/admin_notifications`, {
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      toast.success("Đã xóa tất cả thông báo!");
+      setNotifications([]);
+    } catch (err) {
+      console.error("Lỗi xóa tất cả:", err);
+      toast.error("Không thể xóa tất cả thông báo!");
+    } finally {
+      setClearAllModal(false);
+    }
+  };
+
+  // XÓA 1 THÔNG BÁO
+  const openDeleteNotifModal = (notifId) => {
+    setDeleteNotifModal({ isOpen: true, notifId });
+  };
+
+  const confirmDeleteNotification = async () => {
+    try {
+      await axios.delete(
+        `${supabaseUrl}/rest/v1/admin_notifications?id=eq.${deleteNotifModal.notifId}`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      toast.success("Đã xóa thông báo!");
+      fetchNotifications();
+    } catch (err) {
+      console.error("Lỗi xóa thông báo:", err);
+      toast.error("Không thể xóa thông báo!");
+    } finally {
+      setDeleteNotifModal({ isOpen: false, notifId: null });
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "tours") fetchAllTours();
+    if (activeTab === "notifications") fetchNotifications();
+  }, [activeTab, fetchAllTours, fetchNotifications]);
+
+  if (!user || user.role !== "admin") return <Navigate to="/login" replace />;
+
+  const formatPrice = (price) =>
+    price ? price.toLocaleString("vi-VN") + "đ" : "-";
+  const formatDate = (date) =>
+    new Date(date).toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+  const getStatusText = (status) => {
+    switch (status) {
+      case "PENDING_APPROVAL":
+        return "Chờ duyệt";
+      case "APPROVED":
+        return "Đã duyệt";
+      case "REJECTED":
+        return "Bị từ chối";
+      case "PAUSED":
+        return "Tạm dừng";
+      default:
+        return status;
+    }
+  };
+
+  const getStatusClass = (status) => {
+    switch (status) {
+      case "PENDING_APPROVAL":
+        return "pending";
+      case "APPROVED":
+        return "confirmed";
+      case "REJECTED":
+        return "cancelled";
+      case "PAUSED":
+        return "paused";
+      default:
+        return "";
+    }
+  };
+
+  const getNotifTypeText = (type) => {
+    switch (type) {
+      case "tour_created":
+        return "Tour mới được tạo";
+      case "tour_paused":
+        return "Tour bị tạm dừng";
+      case "tour_reactivated":
+        return "Tour được kích hoạt lại";
+      case "tour_deleted":
+        return "Tour đã bị xóa";
+      case "tour_delete_request":
+        return "Yêu cầu xóa tour";
+      default:
+        return "Thông báo";
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => n.status === "unread").length;
 
   return (
     <>
       <Header />
 
       <div className="ad2-container">
-        {/* Topbar */}
         <div className="ad2-topbar">
           <div className="ad2-topbar-left">
             <h1 className="ad2-title">Bảng điều khiển Admin</h1>
-            <p className="ad2-subtitle">
-              Quản lý toàn diện: người dùng, tour, đơn hàng, doanh thu
-            </p>
-          </div>
-          <div className="ad2-topbar-right">
-            <select className="ad2-period">
-              <option>7 ngày qua</option>
-              <option>30 ngày qua</option>
-              <option>Năm nay</option>
-            </select>
-            <button className="ad2-btn-create">+ Tạo tour</button>
+            <p className="ad2-subtitle">Quản lý tour và thông báo từ Partner</p>
           </div>
         </div>
 
-        {/* Tabs - ĐÃ BỔ SUNG 5 TAB */}
         <div className="ad2-tabs">
-          <button
-            className={`ad2-tab ${activeTab === "overview" ? "active" : ""}`}
-            onClick={() => setActiveTab("overview")}
-          >
-            Tổng quan
-          </button>
-          <button
-            className={`ad2-tab ${activeTab === "tours" ? "active" : ""}`}
-            onClick={() => setActiveTab("tours")}
-          >
-            Quản lý Tours
-          </button>
-          <button
-            className={`ad2-tab ${activeTab === "orders" ? "active" : ""}`}
-            onClick={() => setActiveTab("orders")}
-          >
-            Đơn hàng
-          </button>
-          <button
-            className={`ad2-tab ${activeTab === "users" ? "active" : ""}`}
-            onClick={() => setActiveTab("users")}
-          >
-            Người dùng
-          </button>
-          <button
-            className={`ad2-tab ${activeTab === "partners" ? "active" : ""}`}
-            onClick={() => setActiveTab("partners")}
-          >
-            Đối tác
-          </button>
-          <button
-            className={`ad2-tab ${activeTab === "vouchers" ? "active" : ""}`}
-            onClick={() => setActiveTab("vouchers")}
-          >
-            Voucher & KM
-          </button>
-          <button
-            className={`ad2-tab ${activeTab === "reviews" ? "active" : ""}`}
-            onClick={() => setActiveTab("reviews")}
-          >
-            Đánh giá
-          </button>
+          {[
+            { id: "tours", label: "Quản lý Tours" },
+            {
+              id: "notifications",
+              label: `Thông báo${unreadCount > 0 ? ` (${unreadCount})` : ""}`,
+            },
+            { id: "orders", label: "Đơn hàng" },
+            { id: "users", label: "Người dùng" },
+            { id: "partners", label: "Đối tác" },
+            { id: "vouchers", label: "Voucher & KM" },
+            { id: "reviews", label: "Đánh giá" },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              className={`ad2-tab ${activeTab === tab.id ? "active" : ""}`}
+              onClick={() => setActiveTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
 
-        {/* Content */}
         <div className="ad2-content">
-          {/* === TỔNG QUAN === */}
-          {activeTab === "overview" && (
-            <>
-              <div className="ad2-stats-grid">
-                <div className="ad2-stat-card">
-                  <div className="ad2-stat-icon bookings">Bookings</div>
-                  <div className="ad2-stat-value">8,420</div>
-                  <div className="ad2-stat-label">Tổng đặt chỗ</div>
-                  <div className="ad2-stat-change up">+12%</div>
-                </div>
-                <div className="ad2-stat-card">
-                  <div className="ad2-stat-icon revenue">Revenue</div>
-                  <div className="ad2-stat-value">12.4B</div>
-                  <div className="ad2-stat-label">Doanh thu</div>
-                  <div className="ad2-stat-change up">+8%</div>
-                </div>
-                <div className="ad2-stat-card">
-                  <div className="ad2-stat-icon partners">Partners</div>
-                  <div className="ad2-stat-value">312</div>
-                  <div className="ad2-stat-label">Đối tác</div>
-                  <div className="ad2-stat-change down">-2%</div>
-                </div>
-                <div className="ad2-stat-card">
-                  <div className="ad2-stat-icon reviews">Reviews</div>
-                  <div className="ad2-stat-value">4.8</div>
-                  <div className="ad2-stat-label">Đánh giá TB</div>
-                  <div className="ad2-stat-change up">+0.3</div>
-                </div>
-              </div>
-
-              <div className="ad2-ai-card">
-                <div className="ad2-ai-header">
-                  <div className="ad2-ai-icon">AI</div>
-                  <h3>Gợi ý từ AI</h3>
-                </div>
-                <p>
-                  <strong>“Vịnh Hạ Long 2N1Đ”</strong> đang có tỷ lệ chuyển đổi
-                  thấp. Đề xuất: giảm <strong>5%</strong> + huy hiệu “Bán chạy”.
-                </p>
-                <button className="ad2-btn-apply">Áp dụng ngay</button>
-              </div>
-            </>
-          )}
-
-          {/* === QUẢN LÝ TOURS === */}
+          {/* QUẢN LÝ TOURS */}
           {activeTab === "tours" && (
             <div className="ad2-table-wrapper">
               <div className="ad2-table-header">
-                <h3>Danh sách Tours</h3>
-                <button className="ad2-btn-create">+ Thêm tour mới</button>
+                <h3>Danh sách tất cả Tour ({tours.length})</h3>
               </div>
-              <table className="ad2-table">
-                <thead>
-                  <tr>
-                    <th>Tour</th>
-                    <th>Đối tác</th>
-                    <th>Giá</th>
-                    <th>Trạng thái</th>
-                    <th>Hành động</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>
-                      <div className="ad2-tour-cell">Vịnh Hạ Long 2N1Đ</div>
-                    </td>
-                    <td>Ocean Queen</td>
-                    <td>2.100.000đ</td>
-                    <td>
-                      <span className="ad2-status ongoing">Đang bán</span>
-                    </td>
-                    <td>
-                      <button className="ad2-btn edit">Sửa</button>
-                      <button className="ad2-btn stop">Tắt</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+
+              {loadingTours ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải tour...
+                </div>
+              ) : tours.length === 0 ? (
+                <div className="ad2-no-data">
+                  <p>Chưa có tour nào được tạo.</p>
+                </div>
+              ) : (
+                <table className="ad2-tours-table">
+                  <thead>
+                    <tr>
+                      <th>Tên Tour</th>
+                      <th>Tên Partner</th>
+                      <th>Địa điểm</th>
+                      <th>Giá</th>
+                      <th>Số ngày</th>
+                      <th>Trạng thái</th>
+                      <th>Ngày tạo</th>
+                      <th>Hành động</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {tours.map((tour) => (
+                      <tr key={tour.id}>
+                        <td className="ad2-tour-name">{tour.name}</td>
+                        <td>
+                          <strong>
+                            {tour.partner_name || "Chưa xác định"}
+                          </strong>
+                        </td>
+                        <td>{tour.location || "-"}</td>
+                        <td>{formatPrice(tour.price)}</td>
+                        <td>{tour.duration_days || "-"}</td>
+                        <td>
+                          <span
+                            className={`ad2-status ${getStatusClass(
+                              tour.status
+                            )}`}
+                          >
+                            {getStatusText(tour.status)}
+                          </span>
+                        </td>
+                        <td>{formatDate(tour.created_at)}</td>
+                        <td className="ad2-actions">
+                          {tour.status === "PENDING_APPROVAL" && (
+                            <button
+                              className="ad2-btn approve"
+                              onClick={() => openApproveTourModal(tour)}
+                            >
+                              Duyệt Tour
+                            </button>
+                          )}
+                          {(tour.status === "APPROVED" ||
+                            tour.status === "PAUSED") && (
+                            <button
+                              className="ad2-btn delete"
+                              onClick={() => openDeleteTourModal(tour)}
+                            >
+                              Xóa Tour
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
 
-          {/* === ĐƠN HÀNG === */}
-          {activeTab === "orders" && (
-            <div className="ad2-table-wrapper">
-              <h3>Đơn đặt tour</h3>
-              <table className="ad2-table">
-                <thead>
-                  <tr>
-                    <th>Mã đơn</th>
-                    <th>Tour</th>
-                    <th>Khách</th>
-                    <th>Tổng</th>
-                    <th>Trạng thái</th>
-                    <th>Hành động</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>#ORD-7742</td>
-                    <td>Vịnh Hạ Long</td>
-                    <td>Nguyễn Văn A</td>
-                    <td>4.380.000đ</td>
-                    <td>
-                      <span className="ad2-status confirmed">
-                        Đã thanh toán
-                      </span>
-                    </td>
-                    <td>
-                      <button className="ad2-btn confirm">Xác nhận</button>
-                      <button className="ad2-btn refund">Hoàn tiền</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* === NGƯỜI DÙNG === */}
-          {activeTab === "users" && (
-            <div className="ad2-table-wrapper">
-              <h3>Quản lý người dùng</h3>
-              <table className="ad2-table">
-                <thead>
-                  <tr>
-                    <th>Tên</th>
-                    <th>Email</th>
-                    <th>Role</th>
-                    <th>Điểm</th>
-                    <th>Hành động</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Nguyễn Văn A</td>
-                    <td>a@gmail.com</td>
-                    <td>customer</td>
-                    <td>1,250</td>
-                    <td>
-                      <button className="ad2-btn lock">Khóa</button>
-                      <button className="ad2-btn edit">Sửa</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* === ĐỐI TÁC === */}
-          {activeTab === "partners" && (
-            <div className="ad2-table-wrapper">
-              <h3>Quản lý đối tác</h3>
-              <table className="ad2-table">
-                <thead>
-                  <tr>
-                    <th>Tên công ty</th>
-                    <th>Số tour</th>
-                    <th>Doanh thu</th>
-                    <th>Trạng thái</th>
-                    <th>Hành động</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>Ocean Queen</td>
-                    <td>48</td>
-                    <td>2.1B</td>
-                    <td>
-                      <span className="ad2-status confirmed">Đã duyệt</span>
-                    </td>
-                    <td>
-                      <button className="ad2-btn approve">Duyệt</button>
-                      <button className="ad2-btn reject">Từ chối</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {/* === VOUCHER & KHUYẾN MÃI === */}
-          {activeTab === "vouchers" && (
+          {/* THÔNG BÁO */}
+          {activeTab === "notifications" && (
             <div className="ad2-table-wrapper">
               <div className="ad2-table-header">
-                <h3>Chương trình khuyến mãi</h3>
-                <button className="ad2-btn-create">+ Tạo flash sale</button>
+                <h3>Thông báo từ Partner ({notifications.length})</h3>
+                <div className="ad2-notif-actions">
+                  <button
+                    className="ad2-btn secondary"
+                    onClick={openMarkAllReadModal}
+                    disabled={unreadCount === 0}
+                  >
+                    Đánh dấu đọc tất cả
+                  </button>
+                  <button
+                    className="ad2-btn danger"
+                    onClick={openClearAllModal}
+                    disabled={notifications.length === 0}
+                  >
+                    Xóa tất cả
+                  </button>
+                </div>
               </div>
-              <div className="ad2-promo-card">
-                <h4>Flash Sale 11.11</h4>
-                <p>
-                  Giảm <strong>20%</strong> cho tour nội địa
-                </p>
-                <p>Hạn: 11/11 - 13/11</p>
-                <button className="ad2-btn stop">Dừng</button>
-              </div>
+
+              {loadingNotifs ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải thông báo...
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="ad2-no-data">
+                  <p>Chưa có thông báo nào từ Partner.</p>
+                </div>
+              ) : (
+                <div className="ad2-notifications-list">
+                  {notifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      className={`ad2-notification-item ${
+                        notif.status === "unread" ? "unread" : ""
+                      }`}
+                    >
+                      <div className="ad2-notif-header">
+                        <strong>{getNotifTypeText(notif.type)}</strong>
+                        <span className="ad2-notif-date">
+                          {formatDate(notif.created_at)}
+                        </span>
+                        <button
+                          className="ad2-btn notif-delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteNotifModal(notif.id);
+                          }}
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                      <p className="ad2-notif-message">{notif.message}</p>
+                      {notif.status === "unread" && (
+                        <small
+                          style={{ color: "#4361ee", fontStyle: "italic" }}
+                          onClick={() => markAsRead(notif.id)}
+                        >
+                          Nhấn để đánh dấu đã đọc
+                        </small>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
-          {/* === ĐÁNH GIÁ === */}
-          {activeTab === "reviews" && (
+          {/* Các tab khác */}
+          {["orders", "users", "partners", "vouchers", "reviews"].includes(
+            activeTab
+          ) && (
             <div className="ad2-table-wrapper">
-              <h3>Review cần duyệt</h3>
-              <div className="ad2-review-item">
-                <p>
-                  <strong>#BKO-9211</strong> - "Tour tuyệt vời, hướng dẫn viên
-                  nhiệt tình!"
-                </p>
-                <button className="ad2-btn approve">Duyệt</button>
-                <button className="ad2-btn reject">Xóa</button>
-              </div>
+              <h3>
+                {activeTab === "orders" && "Đơn hàng"}
+                {activeTab === "users" && "Quản lý người dùng"}
+                {activeTab === "partners" && "Quản lý đối tác"}
+                {activeTab === "vouchers" && "Voucher & Khuyến mãi"}
+                {activeTab === "reviews" && "Đánh giá"}
+              </h3>
+              <p
+                style={{
+                  textAlign: "center",
+                  padding: "60px 0",
+                  color: "#888",
+                }}
+              >
+                Chưa có dữ liệu
+              </p>
             </div>
           )}
         </div>
       </div>
+
+      {/* Modal duyệt tour */}
+      <ConfirmModal
+        isOpen={approveTourModal.isOpen}
+        title="Duyệt tour"
+        message={`Bạn có chắc chắn muốn DUYỆT tour "${approveTourModal.tourName}"?`}
+        onConfirm={confirmApproveTour}
+        onCancel={() =>
+          setApproveTourModal({
+            isOpen: false,
+            tourId: null,
+            tourName: "",
+            partnerId: null,
+          })
+        }
+      />
+
+      {/* Modal xóa tour */}
+      <ConfirmModal
+        isOpen={deleteTourModal.isOpen}
+        title="Xóa tour"
+        message={`Bạn có chắc chắn muốn XÓA tour "${deleteTourModal.tourName}"? Hành động này không thể hoàn tác.`}
+        onConfirm={confirmDeleteTour}
+        onCancel={() =>
+          setDeleteTourModal({
+            isOpen: false,
+            tourId: null,
+            tourName: "",
+            partnerId: null,
+          })
+        }
+      />
+
+      {/* Modal xóa 1 thông báo */}
+      <ConfirmModal
+        isOpen={deleteNotifModal.isOpen}
+        title="Xóa thông báo"
+        message="Bạn có chắc muốn xóa thông báo này?"
+        onConfirm={confirmDeleteNotification}
+        onCancel={() => setDeleteNotifModal({ isOpen: false, notifId: null })}
+      />
+
+      {/* Modal đánh dấu đọc tất cả */}
+      <ConfirmModal
+        isOpen={markAllReadModal}
+        title="Đánh dấu đọc tất cả"
+        message="Bạn có muốn đánh dấu tất cả thông báo là đã đọc?"
+        onConfirm={confirmMarkAllRead}
+        onCancel={() => setMarkAllReadModal(false)}
+      />
+
+      {/* Modal xóa tất cả thông báo */}
+      <ConfirmModal
+        isOpen={clearAllModal}
+        title="Xóa tất cả thông báo"
+        message="Bạn có chắc chắn muốn XÓA TOÀN BỘ thông báo?"
+        onConfirm={confirmClearAll}
+        onCancel={() => setClearAllModal(false)}
+      />
 
       <Footer />
     </>
