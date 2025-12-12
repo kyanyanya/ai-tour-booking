@@ -1,0 +1,86 @@
+/* src/styles/components/modals/ConfirmModal.css */
+.confirm-modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 2000;
+  backdrop-filter: blur(6px);
+}
+
+.confirm-modal {
+  background: white;
+  padding: 32px;
+  border-radius: 16px;
+  width: 420px;
+  max-width: 90vw;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  text-align: center;
+  animation: modalPop 0.3s ease-out;
+}
+
+@keyframes modalPop {
+  from {
+    opacity: 0;
+    transform: scale(0.9);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.confirm-modal-title {
+  margin: 0 0 16px;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1a1a1a;
+}
+
+.confirm-modal-message {
+  margin: 0 0 28px;
+  color: #555;
+  font-size: 1rem;
+  line-height: 1.5;
+}
+
+.confirm-modal-actions {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.confirm-btn {
+  flex: 1;
+  padding: 12px;
+  border: none;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.confirm-btn.cancel {
+  background: #f1f3f5;
+  color: #666;
+}
+
+.confirm-btn.cancel:hover {
+  background: #e2e6ea;
+}
+
+.confirm-btn.confirm {
+  background: #ef4444;
+  color: white;
+}
+
+.confirm-btn.confirm:hover {
+  background: #dc2626;
+  transform: translateY(-2px);
+}

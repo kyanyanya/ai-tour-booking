@@ -65,43 +65,65 @@ const CreateTourForm = ({ onClose, onSuccess }) => {
     }
 
     try {
-      // Lấy tên Partner từ user.full_name (đảm bảo luôn có)
       const partnerName = user?.full_name?.trim() || "Partner";
 
-      const tourData = {
-        partner_id: user.id,
-        partner_name: partnerName, // THÊM TÊN PARTNER VÀO ĐÂY
-        name: formData.name.trim(),
-        description: formData.description.trim() || null,
-        price: parseFloat(formData.price),
-        location: formData.location.trim() || null,
-        duration_days: formData.duration_days
-          ? parseInt(formData.duration_days, 10)
-          : null,
-        itinerary: itineraryDays.map((d) => ({
-          day: d.day,
-          activities: d.activities.trim(),
-        })),
-        status: "PENDING_APPROVAL",
-      };
-
-      await axios.post(`${supabaseUrl}/rest/v1/tours`, tourData, {
-        headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${session?.access_token}`,
-          "Content-Type": "application/json",
-          Prefer: "return=minimal",
+      // 1. Tạo tour trước
+      const tourResponse = await axios.post(
+        `${supabaseUrl}/rest/v1/tours`,
+        {
+          partner_id: user.id,
+          partner_name: partnerName,
+          name: formData.name.trim(),
+          description: formData.description.trim() || null,
+          price: parseFloat(formData.price),
+          location: formData.location.trim() || null,
+          duration_days: formData.duration_days
+            ? parseInt(formData.duration_days, 10)
+            : null,
+          itinerary: itineraryDays.map((d) => ({
+            day: d.day,
+            activities: d.activities.trim(),
+          })),
+          status: "PENDING_APPROVAL",
         },
-      });
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session?.access_token}`,
+            "Content-Type": "application/json",
+            Prefer: "return=representation", // QUAN TRỌNG: trả về tour vừa tạo
+          },
+        }
+      );
 
-      toast.success(`Tạo tour thành công bởi ${partnerName}!`);
+      const newTour = tourResponse.data[0]; // Lấy tour vừa tạo
+
+      // 2. Gửi thông báo cho Admin
+      await axios.post(
+        `${supabaseUrl}/rest/v1/admin_notifications`,
+        {
+          from_role: "partner",
+          from_id: user.id,
+          message: `Partner "${partnerName}" vừa tạo tour mới và đang chờ duyệt: "${newTour.name}"`,
+          type: "tour_created",
+          tour_id: newTour.id,
+          status: "unread",
+        },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session?.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      toast.success(`Tạo tour thành công! Đã thông báo cho Admin.`);
       onSuccess();
       onClose();
     } catch (error) {
       console.error("Lỗi tạo tour:", error);
-      const msg =
-        error.response?.data?.message ||
-        "Không thể tạo tour. Vui lòng thử lại!";
+      const msg = error.response?.data?.message || "Không thể tạo tour!";
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -112,7 +134,6 @@ const CreateTourForm = ({ onClose, onSuccess }) => {
     <div className="create-tour-form">
       <h2>Tạo Tour Mới</h2>
 
-      {/* Hiển thị tên Partner đang tạo */}
       <div
         style={{
           marginBottom: "20px",

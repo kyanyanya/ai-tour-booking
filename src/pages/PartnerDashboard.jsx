@@ -1,10 +1,11 @@
 // src/pages/PartnerDashboard.jsx
-import React, { useState, useCallback } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { Navigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import CreateTourForm from "../components/forms/CreateTourForm";
+import ConfirmModal from "../components/modals/ConfirmModal.jsx";
 import axios from "axios";
 import { toast } from "react-toastify";
 import "../styles/pages/PartnerDashboard.css";
@@ -13,16 +14,44 @@ const PartnerDashboard = () => {
   const { user, session } = useAuth();
   const [activeTab, setActiveTab] = useState("tours");
   const [tours, setTours] = useState([]);
+  const [notifications, setNotifications] = useState([]);
+  const [loadingTours, setLoadingTours] = useState(false);
+  const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [loading, setLoading] = useState(false);
+
+  // Confirm Modal cho yêu cầu xóa tour
+  const [deleteRequestModal, setDeleteRequestModal] = useState({
+    isOpen: false,
+    tourId: null,
+    tourName: "",
+  });
+
+  // Confirm Modal cho tạm dừng / kích hoạt tour
+  const [toggleStatusModal, setToggleStatusModal] = useState({
+    isOpen: false,
+    tourId: null,
+    tourName: "",
+    currentStatus: "",
+  });
+
+  // Confirm Modal cho xóa 1 thông báo
+  const [deleteNotifModal, setDeleteNotifModal] = useState({
+    isOpen: false,
+    notifId: null,
+  });
+
+  // Confirm Modal cho XÓA TẤT CẢ thông báo
+  const [clearAllModal, setClearAllModal] = useState(false);
+
+  // Confirm Modal cho ĐÁNH DẤU ĐỌC TẤT CẢ
+  const [markAllReadModal, setMarkAllReadModal] = useState(false);
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   const fetchTours = useCallback(async () => {
     if (!user?.id || !session?.access_token) return;
-
-    setLoading(true);
+    setLoadingTours(true);
     try {
       const { data } = await axios.get(
         `${supabaseUrl}/rest/v1/tours?select=*&partner_id=eq.${user.id}&order=created_at.desc`,
@@ -34,34 +63,269 @@ const PartnerDashboard = () => {
         }
       );
       setTours(data || []);
-    } catch (error) {
+    } catch (err) {
+      console.error("Lỗi khi tải tour:", err);
       toast.error("Lỗi khi tải danh sách tour!");
-      console.error(error);
     } finally {
-      setLoading(false);
+      setLoadingTours(false);
     }
   }, [user?.id, session?.access_token, supabaseUrl, anonKey]);
 
-  const handleTabChange = (tab) => {
-    setActiveTab(tab);
-    if (tab === "tours") fetchTours();
+  const fetchNotifications = useCallback(async () => {
+    if (!user?.id || !session?.access_token) return;
+    setLoadingNotifs(true);
+    try {
+      const { data } = await axios.get(
+        `${supabaseUrl}/rest/v1/partner_notifications?to_partner_id=eq.${user.id}&order=created_at.desc`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      setNotifications(data || []);
+    } catch (err) {
+      console.error("Lỗi khi tải thông báo:", err);
+      toast.error("Lỗi khi tải thông báo!");
+    } finally {
+      setLoadingNotifs(false);
+    }
+  }, [user?.id, session?.access_token, supabaseUrl, anonKey]);
+
+  // Đánh dấu 1 thông báo đã đọc
+  const markAsRead = async (notifId) => {
+    try {
+      await axios.patch(
+        `${supabaseUrl}/rest/v1/partner_notifications?id=eq.${notifId}`,
+        { status: "read" },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notifId ? { ...n, status: "read" } : n))
+      );
+    } catch (err) {
+      console.error("Lỗi đánh dấu đã đọc:", err);
+    }
   };
 
-  if (!user || user.role !== "partner") {
-    return <Navigate to="/login" replace />;
-  }
+  // ĐÁNH DẤU ĐỌC TẤT CẢ
+  const openMarkAllReadModal = () => {
+    if (unreadCount === 0) {
+      toast.info("Không có thông báo nào chưa đọc!");
+      return;
+    }
+    setMarkAllReadModal(true);
+  };
 
-  // Helper
+  const confirmMarkAllRead = async () => {
+    try {
+      await axios.patch(
+        `${supabaseUrl}/rest/v1/partner_notifications`,
+        { status: "read" },
+        {
+          params: { to_partner_id: `eq.${user.id}`, status: "eq.unread" },
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      toast.success("Đã đánh dấu tất cả là đã đọc!");
+      fetchNotifications();
+    } catch (err) {
+      console.error("Lỗi đánh dấu tất cả:", err);
+      toast.error("Không thể đánh dấu tất cả!");
+    } finally {
+      setMarkAllReadModal(false);
+    }
+  };
+
+  // XÓA TẤT CẢ THÔNG BÁO
+  const openClearAllModal = () => {
+    if (notifications.length === 0) {
+      toast.info("Không có thông báo nào để xóa!");
+      return;
+    }
+    setClearAllModal(true);
+  };
+
+  const confirmClearAll = async () => {
+    try {
+      await axios.delete(`${supabaseUrl}/rest/v1/partner_notifications`, {
+        params: { to_partner_id: `eq.${user.id}` },
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      toast.success("Đã xóa tất cả thông báo!");
+      setNotifications([]);
+    } catch (err) {
+      console.error("Lỗi xóa tất cả:", err);
+      toast.error("Không thể xóa tất cả thông báo!");
+    } finally {
+      setClearAllModal(false);
+    }
+  };
+
+  // TẠM DỪNG / KÍCH HOẠT TOUR
+  const openToggleStatusModal = (tour) => {
+    setToggleStatusModal({
+      isOpen: true,
+      tourId: tour.id,
+      tourName: tour.name,
+      currentStatus: tour.status,
+    });
+  };
+
+  const confirmToggleStatus = async () => {
+    const { tourId, tourName, currentStatus } = toggleStatusModal;
+    const newStatus = currentStatus === "APPROVED" ? "PAUSED" : "APPROVED";
+    const actionText = currentStatus === "APPROVED" ? "tạm dừng" : "kích hoạt";
+
+    try {
+      await axios.patch(
+        `${supabaseUrl}/rest/v1/tours?id=eq.${tourId}`,
+        { status: newStatus },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      await axios.post(
+        `${supabaseUrl}/rest/v1/admin_notifications`,
+        {
+          from_role: "partner",
+          from_id: user.id,
+          message: `Partner "${user.full_name}" đã ${actionText} tour "${tourName}"`,
+          type: newStatus === "PAUSED" ? "tour_paused" : "tour_reactivated",
+          tour_id: tourId,
+        },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      toast.success(`Đã ${actionText} tour thành công!`);
+      fetchTours();
+    } catch (err) {
+      console.error("Lỗi cập nhật trạng thái:", err);
+      toast.error("Không thể thay đổi trạng thái tour!");
+    } finally {
+      setToggleStatusModal({
+        isOpen: false,
+        tourId: null,
+        tourName: "",
+        currentStatus: "",
+      });
+    }
+  };
+
+  // YÊU CẦU XÓA TOUR
+  const openDeleteRequestModal = (tour) => {
+    setDeleteRequestModal({
+      isOpen: true,
+      tourId: tour.id,
+      tourName: tour.name,
+    });
+  };
+
+  const confirmDeleteRequest = async () => {
+    const { tourId, tourName } = deleteRequestModal;
+    try {
+      await axios.post(
+        `${supabaseUrl}/rest/v1/admin_notifications`,
+        {
+          from_role: "partner",
+          from_id: user.id,
+          message: `Partner "${user.full_name}" yêu cầu XÓA tour: "${tourName}"`,
+          type: "tour_delete_request",
+          tour_id: tourId,
+        },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+      toast.success("Đã gửi yêu cầu xóa tour đến Admin!");
+      setDeleteRequestModal({ isOpen: false, tourId: null, tourName: "" });
+    } catch (err) {
+      console.error("Lỗi gửi yêu cầu xóa:", err);
+      toast.error("Không thể gửi yêu cầu!");
+    }
+  };
+
+  // XÓA 1 THÔNG BÁO
+  const openDeleteNotifModal = (notifId) => {
+    setDeleteNotifModal({ isOpen: true, notifId });
+  };
+
+  const confirmDeleteNotification = async () => {
+    try {
+      await axios.delete(
+        `${supabaseUrl}/rest/v1/partner_notifications?id=eq.${deleteNotifModal.notifId}`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      toast.success("Đã xóa thông báo!");
+      fetchNotifications();
+    } catch (err) {
+      console.error("Lỗi xóa thông báo:", err);
+      toast.error("Không thể xóa thông báo!");
+    } finally {
+      setDeleteNotifModal({ isOpen: false, notifId: null });
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === "tours") fetchTours();
+    if (activeTab === "notifications") fetchNotifications();
+  }, [activeTab, fetchTours, fetchNotifications]);
+
+  if (!user || user.role !== "partner") return <Navigate to="/login" replace />;
+
   const formatPrice = (price) =>
     price ? price.toLocaleString("vi-VN") + "đ" : "-";
-  const formatDate = (date) => new Date(date).toLocaleDateString("vi-VN");
+  const formatDate = (date) =>
+    new Date(date).toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
 
   const getStatusText = (status) => {
     switch (status) {
       case "PENDING_APPROVAL":
         return "Chờ duyệt";
       case "APPROVED":
-        return "Đã duyệt";
+        return "Đang hoạt động";
+      case "PAUSED":
+        return "Tạm dừng";
       case "REJECTED":
         return "Bị từ chối";
       default:
@@ -75,6 +339,8 @@ const PartnerDashboard = () => {
         return "pending";
       case "APPROVED":
         return "confirmed";
+      case "PAUSED":
+        return "paused";
       case "REJECTED":
         return "cancelled";
       default:
@@ -82,18 +348,31 @@ const PartnerDashboard = () => {
     }
   };
 
+  const getNotifTypeText = (type) => {
+    switch (type) {
+      case "tour_approved":
+        return "Tour được duyệt";
+      case "tour_rejected":
+        return "Tour bị từ chối";
+      case "tour_delete_request":
+        return "Yêu cầu xóa tour";
+      case "tour_deleted":
+        return "Tour đã bị xóa";
+      default:
+        return "Thông báo";
+    }
+  };
+
+  const unreadCount = notifications.filter((n) => n.status === "unread").length;
+
   return (
     <>
       <Header />
-
       <div className="pd-container">
-        {/* Topbar */}
         <div className="pd-topbar">
           <div className="pd-topbar-left">
             <h1 className="pd-title">Bảng điều khiển Đối tác</h1>
-            <p className="pd-subtitle">
-              Quản lý tours, đơn hàng và doanh thu của bạn
-            </p>
+            <p className="pd-subtitle">Quản lý tours và thông báo</p>
           </div>
           <div className="pd-topbar-right">
             <button
@@ -105,11 +384,14 @@ const PartnerDashboard = () => {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="pd-tabs">
           {[
             { id: "overview", label: "Tổng quan" },
             { id: "tours", label: "Tour của bạn" },
+            {
+              id: "notifications",
+              label: `Thông báo${unreadCount > 0 ? ` (${unreadCount})` : ""}`,
+            },
             { id: "orders", label: "Đơn hàng" },
             { id: "recentBookings", label: "Đặt chỗ gần đây" },
             { id: "analytics", label: "Phân tích" },
@@ -119,16 +401,15 @@ const PartnerDashboard = () => {
             <button
               key={tab.id}
               className={`pd-tab ${activeTab === tab.id ? "active" : ""}`}
-              onClick={() => handleTabChange(tab.id)}
+              onClick={() => setActiveTab(tab.id)}
             >
               {tab.label}
             </button>
           ))}
         </div>
 
-        {/* Nội dung */}
         <div className="pd-content">
-          {/* Tổng quan - giữ nguyên */}
+          {/* Tổng quan */}
           {activeTab === "overview" && (
             <div className="pd-stats-grid">
               <div className="pd-stat-card">
@@ -154,7 +435,7 @@ const PartnerDashboard = () => {
             </div>
           )}
 
-          {/* BẢNG TOUR MỚI - ĐẸP NHƯ ALLPRODUCTS */}
+          {/* Tour của bạn */}
           {activeTab === "tours" && (
             <div className="pd-table-wrapper">
               <div className="pd-table-header">
@@ -167,11 +448,11 @@ const PartnerDashboard = () => {
                 </button>
               </div>
 
-              {loading ? (
+              {loadingTours ? (
                 <div
                   style={{
                     textAlign: "center",
-                    padding: "40px",
+                    padding: "60px",
                     color: "#666",
                   }}
                 >
@@ -212,18 +493,113 @@ const PartnerDashboard = () => {
                           </span>
                         </td>
                         <td>{formatDate(tour.created_at)}</td>
-                        <td>
+                        <td className="pd-actions">
                           <button className="pd-btn edit">Sửa</button>
-                          <button className="pd-btn stop">
-                            {tour.status === "APPROVED"
-                              ? "Tạm dừng"
-                              : "Kích hoạt"}
-                          </button>
+
+                          {(tour.status === "APPROVED" ||
+                            tour.status === "PAUSED") && (
+                            <button
+                              className={`pd-btn ${
+                                tour.status === "APPROVED" ? "stop" : "start"
+                              }`}
+                              onClick={() => openToggleStatusModal(tour)}
+                            >
+                              {tour.status === "APPROVED"
+                                ? "Tạm dừng"
+                                : "Kích hoạt"}
+                            </button>
+                          )}
+
+                          {tour.status === "PAUSED" && (
+                            <button
+                              className="pd-btn delete"
+                              onClick={() => openDeleteRequestModal(tour)}
+                            >
+                              Xóa
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              )}
+            </div>
+          )}
+
+          {/* Thông báo */}
+          {activeTab === "notifications" && (
+            <div className="pd-table-wrapper">
+              <div className="pd-table-header">
+                <h3>Thông báo ({notifications.length})</h3>
+                <div className="pd-notif-actions">
+                  <button
+                    className="pd-btn secondary"
+                    onClick={openMarkAllReadModal}
+                    disabled={unreadCount === 0}
+                  >
+                    Đánh dấu đọc tất cả
+                  </button>
+                  <button
+                    className="pd-btn danger"
+                    onClick={openClearAllModal}
+                    disabled={notifications.length === 0}
+                  >
+                    Xóa tất cả
+                  </button>
+                </div>
+              </div>
+
+              {loadingNotifs ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải thông báo...
+                </div>
+              ) : notifications.length === 0 ? (
+                <div className="pd-no-data">
+                  <p>Chưa có thông báo nào.</p>
+                </div>
+              ) : (
+                <div className="pd-notifications-list">
+                  {notifications.map((notif) => (
+                    <div
+                      key={notif.id}
+                      className={`pd-notification-item ${
+                        notif.status === "unread" ? "unread" : ""
+                      }`}
+                    >
+                      <div className="pd-notif-header">
+                        <strong>{getNotifTypeText(notif.type)}</strong>
+                        <span className="pd-notif-date">
+                          {formatDate(notif.created_at)}
+                        </span>
+                        <button
+                          className="pd-btn notif-delete"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openDeleteNotifModal(notif.id);
+                          }}
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                      <p className="pd-notif-message">{notif.message}</p>
+                      {notif.status === "unread" && (
+                        <small
+                          style={{ color: "#4361ee", fontStyle: "italic" }}
+                          onClick={() => markAsRead(notif.id)}
+                        >
+                          Nhấn để đánh dấu đã đọc
+                        </small>
+                      )}
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           )}
@@ -258,21 +634,81 @@ const PartnerDashboard = () => {
         </div>
       </div>
 
-      {/* Modal */}
+      {/* Modal tạo tour */}
       {isFormOpen && (
         <div className="modal-backdrop" onClick={() => setIsFormOpen(false)}>
           <div onClick={(e) => e.stopPropagation()}>
             <CreateTourForm
               onClose={() => setIsFormOpen(false)}
-              onSuccess={() => {
-                fetchTours();
+              onSuccess={async () => {
+                await fetchTours();
                 setIsFormOpen(false);
-                toast.success("Tạo tour thành công!");
+                toast.success(
+                  "Tạo tour thành công! Đã gửi thông báo cho Admin."
+                );
               }}
             />
           </div>
         </div>
       )}
+
+      {/* Modal xác nhận tạm dừng / kích hoạt */}
+      <ConfirmModal
+        isOpen={toggleStatusModal.isOpen}
+        title="Xác nhận thay đổi trạng thái"
+        message={`Bạn có chắc muốn ${
+          toggleStatusModal.currentStatus === "APPROVED"
+            ? "TẠM DỪNG"
+            : "KÍCH HOẠT"
+        } tour "${toggleStatusModal.tourName}"?`}
+        onConfirm={confirmToggleStatus}
+        onCancel={() =>
+          setToggleStatusModal({
+            isOpen: false,
+            tourId: null,
+            tourName: "",
+            currentStatus: "",
+          })
+        }
+      />
+
+      {/* Modal yêu cầu xóa tour */}
+      <ConfirmModal
+        isOpen={deleteRequestModal.isOpen}
+        title="Yêu cầu xóa tour"
+        message={`Bạn có chắc muốn gửi yêu cầu XÓA tour "${deleteRequestModal.tourName}" đến Admin?`}
+        onConfirm={confirmDeleteRequest}
+        onCancel={() =>
+          setDeleteRequestModal({ isOpen: false, tourId: null, tourName: "" })
+        }
+      />
+
+      {/* Modal xóa 1 thông báo */}
+      <ConfirmModal
+        isOpen={deleteNotifModal.isOpen}
+        title="Xóa thông báo"
+        message="Bạn có chắc muốn xóa thông báo này?"
+        onConfirm={confirmDeleteNotification}
+        onCancel={() => setDeleteNotifModal({ isOpen: false, notifId: null })}
+      />
+
+      {/* Modal đánh dấu đọc tất cả */}
+      <ConfirmModal
+        isOpen={markAllReadModal}
+        title="Đánh dấu đọc tất cả"
+        message="Bạn có muốn đánh dấu tất cả thông báo là đã đọc?"
+        onConfirm={confirmMarkAllRead}
+        onCancel={() => setMarkAllReadModal(false)}
+      />
+
+      {/* Modal xóa tất cả thông báo */}
+      <ConfirmModal
+        isOpen={clearAllModal}
+        title="Xóa tất cả thông báo"
+        message="Bạn có chắc chắn muốn XÓA TOÀN BỘ thông báo?"
+        onConfirm={confirmClearAll}
+        onCancel={() => setClearAllModal(false)}
+      />
 
       <Footer />
     </>
