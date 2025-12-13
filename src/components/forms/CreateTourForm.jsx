@@ -25,6 +25,65 @@ const CreateTourForm = ({ onClose, onSuccess }) => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+  // Hàm lấy danh sách admin ids từ VIEW (ổn định hơn RPC)
+  const getAdminIds = async () => {
+    try {
+      const { data } = await axios.get(
+        `${supabaseUrl}/rest/v1/admin_ids_view`, // ← ĐÃ THAY ĐỔI CHÍNH Ở ĐÂY
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session?.access_token}`,
+          },
+        }
+      );
+      return data || [];
+    } catch (err) {
+      console.error("Lỗi lấy danh sách admin từ view:", err);
+      return [];
+    }
+  };
+
+  // Hàm gửi thông báo đến TẤT CẢ admin (mỗi admin 1 bản riêng)
+  const notifyAllAdmins = async (message, type, tourId = null) => {
+    if (!session?.access_token) return;
+
+    const admins = await getAdminIds();
+
+    if (admins.length === 0) {
+      console.warn("Không có Admin nào để gửi thông báo.");
+      return;
+    }
+
+    try {
+      for (const admin of admins) {
+        await axios.post(
+          `${supabaseUrl}/rest/v1/admin_notifications`,
+          {
+            to_admin_id: admin.admin_id,
+            from_role: "partner",
+            from_id: user.id,
+            message,
+            type,
+            tour_id: tourId,
+            status: "unread",
+          },
+          {
+            headers: {
+              apikey: anonKey,
+              Authorization: `Bearer ${session.access_token}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+      }
+      console.log(`Đã gửi thông báo "${type}" đến ${admins.length} admin.`);
+    } catch (err) {
+      console.error("Lỗi khi gửi thông báo đến một hoặc nhiều admin:", err);
+      // Không block việc tạo tour
+    }
+  };
+
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -67,7 +126,7 @@ const CreateTourForm = ({ onClose, onSuccess }) => {
     try {
       const partnerName = user?.full_name?.trim() || "Partner";
 
-      // 1. Tạo tour trước
+      // 1. Tạo tour
       const tourResponse = await axios.post(
         `${supabaseUrl}/rest/v1/tours`,
         {
@@ -91,35 +150,27 @@ const CreateTourForm = ({ onClose, onSuccess }) => {
             apikey: anonKey,
             Authorization: `Bearer ${session?.access_token}`,
             "Content-Type": "application/json",
-            Prefer: "return=representation", // QUAN TRỌNG: trả về tour vừa tạo
+            Prefer: "return=representation",
           },
         }
       );
 
-      const newTour = tourResponse.data[0]; // Lấy tour vừa tạo
+      const newTour = tourResponse.data[0];
 
-      // 2. Gửi thông báo cho Admin
-      await axios.post(
-        `${supabaseUrl}/rest/v1/admin_notifications`,
-        {
-          from_role: "partner",
-          from_id: user.id,
-          message: `Partner "${partnerName}" vừa tạo tour mới và đang chờ duyệt: "${newTour.name}"`,
-          type: "tour_created",
-          tour_id: newTour.id,
-          status: "unread",
-        },
-        {
-          headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${session?.access_token}`,
-            "Content-Type": "application/json",
-          },
-        }
+      // 2. Gửi thông báo đến TẤT CẢ admin (dùng view → ổn định, không lỗi 404)
+      await notifyAllAdmins(
+        `Partner "${partnerName}" vừa tạo tour mới và đang chờ duyệt: "${newTour.name}"`,
+        "tour_created",
+        newTour.id
       );
 
-      toast.success(`Tạo tour thành công! Đã thông báo cho Admin.`);
-      onSuccess();
+      toast.success("Tạo tour thành công! Đã gửi thông báo đến tất cả Admin.");
+
+      // Gọi onSuccess để PartnerDashboard reload danh sách tour
+      if (onSuccess) {
+        onSuccess(); // Không cần truyền newTour nữa vì PartnerDashboard tự fetch lại
+      }
+
       onClose();
     } catch (error) {
       console.error("Lỗi tạo tour:", error);
