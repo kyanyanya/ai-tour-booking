@@ -48,6 +48,89 @@ const AdminDashboard = () => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+  // Lấy danh sách tất cả admin ids từ VIEW (ổn định, không bị lỗi 404)
+  const getAdminIds = async () => {
+    try {
+      const { data } = await axios.get(
+        `${supabaseUrl}/rest/v1/admin_ids_view`, // ← ĐÃ THAY ĐỔI CHÍNH Ở ĐÂY
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      return data || [];
+    } catch (err) {
+      console.error("Lỗi lấy danh sách admin từ view:", err);
+      return [];
+    }
+  };
+
+  // Gửi thông báo cho Partner + tất cả Admin khác (trừ chính mình)
+  const notifyPartnerAndOtherAdmins = async (
+    partnerId,
+    tourName,
+    tourId,
+    messageForPartner,
+    typeForPartner,
+    messageForAdmin,
+    typeForAdmin
+  ) => {
+    try {
+      // Gửi cho Partner
+      await axios.post(
+        `${supabaseUrl}/rest/v1/partner_notifications`,
+        {
+          to_partner_id: partnerId,
+          from_role: "admin",
+          from_id: user.id,
+          message: messageForPartner,
+          type: typeForPartner,
+          tour_id: tourId,
+          status: "unread",
+        },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Gửi cho các Admin khác (dùng view → ổn định)
+      const admins = await getAdminIds();
+      for (const admin of admins) {
+        if (admin.admin_id !== user.id) {
+          await axios.post(
+            `${supabaseUrl}/rest/v1/admin_notifications`,
+            {
+              to_admin_id: admin.admin_id,
+              from_role: "admin",
+              from_id: user.id,
+              message: messageForAdmin.replace("{tourName}", tourName),
+              type: typeForAdmin,
+              tour_id: tourId,
+              status: "unread",
+            },
+            {
+              headers: {
+                apikey: anonKey,
+                Authorization: `Bearer ${session.access_token}`,
+                "Content-Type": "application/json",
+              },
+            }
+          );
+        }
+      }
+      console.log("Đã gửi thông báo đến Partner và các admin khác thành công!");
+    } catch (err) {
+      console.error("Lỗi gửi thông báo đến Partner/Admin khác:", err);
+      toast.error("Lỗi gửi thông báo!");
+    }
+  };
+
   const fetchAllTours = useCallback(async () => {
     if (!session?.access_token) return;
     setLoadingTours(true);
@@ -71,11 +154,11 @@ const AdminDashboard = () => {
   }, [session?.access_token, supabaseUrl, anonKey]);
 
   const fetchNotifications = useCallback(async () => {
-    if (!session?.access_token) return;
+    if (!session?.access_token || !user?.id) return;
     setLoadingNotifs(true);
     try {
       const { data } = await axios.get(
-        `${supabaseUrl}/rest/v1/admin_notifications?order=created_at.desc`,
+        `${supabaseUrl}/rest/v1/admin_notifications?to_admin_id=eq.${user.id}&order=created_at.desc`,
         {
           headers: {
             apikey: anonKey,
@@ -90,7 +173,7 @@ const AdminDashboard = () => {
     } finally {
       setLoadingNotifs(false);
     }
-  }, [session?.access_token, supabaseUrl, anonKey]);
+  }, [session?.access_token, user?.id, supabaseUrl, anonKey]);
 
   // DUYỆT TOUR
   const openApproveTourModal = (tour) => {
@@ -105,6 +188,7 @@ const AdminDashboard = () => {
   const confirmApproveTour = async () => {
     const { tourId, tourName, partnerId } = approveTourModal;
     try {
+      // Cập nhật trạng thái tour
       await axios.patch(
         `${supabaseUrl}/rest/v1/tours?id=eq.${tourId}`,
         { status: "APPROVED" },
@@ -117,28 +201,20 @@ const AdminDashboard = () => {
         }
       );
 
-      await axios.post(
-        `${supabaseUrl}/rest/v1/partner_notifications`,
-        {
-          to_partner_id: partnerId,
-          from_role: "admin",
-          from_id: user.id,
-          message: `Tour "${tourName}" đã được duyệt thành công!`,
-          type: "tour_approved",
-          tour_id: tourId,
-          status: "unread",
-        },
-        {
-          headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-          },
-        }
+      // Gửi thông báo cho Partner + các Admin khác
+      await notifyPartnerAndOtherAdmins(
+        partnerId,
+        tourName,
+        tourId,
+        `Tour "${tourName}" đã được duyệt thành công!`,
+        "tour_approved",
+        `Admin "${user.full_name}" đã duyệt tour "{tourName}"`,
+        "admin_approved_tour"
       );
 
-      toast.success("Đã duyệt tour và gửi thông báo cho Partner!");
+      toast.success("Đã duyệt tour và gửi thông báo!");
       fetchAllTours();
+      fetchNotifications();
     } catch (err) {
       console.error("Lỗi duyệt tour:", err);
       toast.error("Không thể duyệt tour!");
@@ -166,24 +242,14 @@ const AdminDashboard = () => {
     const { tourId, tourName, partnerId } = deleteTourModal;
     try {
       // Gửi thông báo trước
-      await axios.post(
-        `${supabaseUrl}/rest/v1/partner_notifications`,
-        {
-          to_partner_id: partnerId,
-          from_role: "admin",
-          from_id: user.id,
-          message: `Tour "${tourName}" đã bị Admin XÓA khỏi hệ thống.`,
-          type: "tour_deleted",
-          tour_id: tourId,
-          status: "unread",
-        },
-        {
-          headers: {
-            apikey: anonKey,
-            Authorization: `Bearer ${session.access_token}`,
-            "Content-Type": "application/json",
-          },
-        }
+      await notifyPartnerAndOtherAdmins(
+        partnerId,
+        tourName,
+        tourId,
+        `Tour "${tourName}" đã bị Admin XÓA khỏi hệ thống.`,
+        "tour_deleted",
+        `Admin "${user.full_name}" đã XÓA tour "{tourName}"`,
+        "admin_deleted_tour"
       );
 
       // Xóa tour sau
@@ -194,8 +260,9 @@ const AdminDashboard = () => {
         },
       });
 
-      toast.success("Đã xóa tour và gửi thông báo cho Partner!");
+      toast.success("Đã xóa tour và gửi thông báo!");
       fetchAllTours();
+      fetchNotifications();
     } catch (err) {
       console.error("Lỗi xóa tour:", err);
       toast.error("Không thể xóa tour!");
@@ -246,7 +313,7 @@ const AdminDashboard = () => {
         `${supabaseUrl}/rest/v1/admin_notifications`,
         { status: "read" },
         {
-          params: { status: "eq.unread" },
+          params: { to_admin_id: `eq.${user.id}`, status: "eq.unread" },
           headers: {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
@@ -264,7 +331,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // XÓA TẤT CẢ THÔNG BÁO
+  // XÓA TẤT CẢ THÔNG BÁO (chỉ của admin hiện tại)
   const openClearAllModal = () => {
     if (notifications.length === 0) {
       toast.info("Không có thông báo nào để xóa!");
@@ -276,6 +343,7 @@ const AdminDashboard = () => {
   const confirmClearAll = async () => {
     try {
       await axios.delete(`${supabaseUrl}/rest/v1/admin_notifications`, {
+        params: { to_admin_id: `eq.${user.id}` },
         headers: {
           apikey: anonKey,
           Authorization: `Bearer ${session.access_token}`,
@@ -326,6 +394,7 @@ const AdminDashboard = () => {
 
   const formatPrice = (price) =>
     price ? price.toLocaleString("vi-VN") + "đ" : "-";
+
   const formatDate = (date) =>
     new Date(date).toLocaleDateString("vi-VN", {
       day: "2-digit",
@@ -373,12 +442,14 @@ const AdminDashboard = () => {
         return "Tour bị tạm dừng";
       case "tour_reactivated":
         return "Tour được kích hoạt lại";
-      case "tour_deleted":
-        return "Tour đã bị xóa";
       case "tour_delete_request":
         return "Yêu cầu xóa tour";
+      case "admin_approved_tour":
+        return "Admin đã duyệt tour";
+      case "admin_deleted_tour":
+        return "Admin đã xóa tour";
       default:
-        return "Thông báo";
+        return "Thông báo hệ thống";
     }
   };
 
@@ -568,7 +639,11 @@ const AdminDashboard = () => {
                       <p className="ad2-notif-message">{notif.message}</p>
                       {notif.status === "unread" && (
                         <small
-                          style={{ color: "#4361ee", fontStyle: "italic" }}
+                          style={{
+                            color: "#4361ee",
+                            fontStyle: "italic",
+                            cursor: "pointer",
+                          }}
                           onClick={() => markAsRead(notif.id)}
                         >
                           Nhấn để đánh dấu đã đọc
@@ -581,7 +656,7 @@ const AdminDashboard = () => {
             </div>
           )}
 
-          {/* Các tab khác */}
+          {/* Các tab placeholder khác */}
           {["orders", "users", "partners", "vouchers", "reviews"].includes(
             activeTab
           ) && (
@@ -661,7 +736,7 @@ const AdminDashboard = () => {
       <ConfirmModal
         isOpen={clearAllModal}
         title="Xóa tất cả thông báo"
-        message="Bạn có chắc chắn muốn XÓA TOÀN BỘ thông báo?"
+        message="Bạn có chắc chắn muốn XÓA TOÀN BỘ thông báo của bạn?"
         onConfirm={confirmClearAll}
         onCancel={() => setClearAllModal(false)}
       />
