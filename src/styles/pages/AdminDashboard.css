@@ -333,6 +333,31 @@
   color: #444;
   line-height: 1.5;
 }
+/* NÚT TỪ CHỐI TOUR */
+.ad2-btn.reject {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  background: #fb923c; /* Cam đậm nhẹ */
+  color: white;
+  margin-left: 8px;
+}
+
+.ad2-btn.reject:hover {
+  background: #f97316;
+  transform: translateY(-1px);
+}
+
+/* Căn nút hành động trong cột */
+.ad2-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
 /* RESPONSIVE */
 @media (max-width: 992px) {

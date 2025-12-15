@@ -17,16 +17,24 @@ const AdminDashboard = () => {
   const [loadingTours, setLoadingTours] = useState(false);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
 
-  // Modal xóa tour
-  const [deleteTourModal, setDeleteTourModal] = useState({
+  // Modal duyệt tour
+  const [approveTourModal, setApproveTourModal] = useState({
     isOpen: false,
     tourId: null,
     tourName: "",
     partnerId: null,
   });
 
-  // Modal duyệt tour
-  const [approveTourModal, setApproveTourModal] = useState({
+  // Modal từ chối tour
+  const [rejectTourModal, setRejectTourModal] = useState({
+    isOpen: false,
+    tourId: null,
+    tourName: "",
+    partnerId: null,
+  });
+
+  // Modal xóa tour
+  const [deleteTourModal, setDeleteTourModal] = useState({
     isOpen: false,
     tourId: null,
     tourName: "",
@@ -48,11 +56,11 @@ const AdminDashboard = () => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  // Lấy danh sách tất cả admin ids từ VIEW (ổn định, không bị lỗi 404)
+  // Lấy danh sách admin ids từ view (UUID)
   const getAdminIds = async () => {
     try {
       const { data } = await axios.get(
-        `${supabaseUrl}/rest/v1/admin_ids_view`, // ← ĐÃ THAY ĐỔI CHÍNH Ở ĐÂY
+        `${supabaseUrl}/rest/v1/admin_ids_view`,
         {
           headers: {
             apikey: anonKey,
@@ -67,7 +75,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // Gửi thông báo cho Partner + tất cả Admin khác (trừ chính mình)
+  // Gửi thông báo cho Partner + các Admin khác (trừ chính mình)
   const notifyPartnerAndOtherAdmins = async (
     partnerId,
     tourName,
@@ -77,8 +85,10 @@ const AdminDashboard = () => {
     messageForAdmin,
     typeForAdmin
   ) => {
+    const adminMessage = messageForAdmin.replace("{tourName}", tourName);
+
+    // Gửi cho Partner
     try {
-      // Gửi cho Partner
       await axios.post(
         `${supabaseUrl}/rest/v1/partner_notifications`,
         {
@@ -95,39 +105,61 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
+            Prefer: "return=minimal",
           },
         }
       );
+      console.log("Gửi thông báo cho Partner thành công");
+    } catch (err) {
+      console.error(
+        "Lỗi gửi thông báo cho Partner:",
+        err.response?.data || err.message
+      );
+      toast.warn("Không thể gửi thông báo cho Partner");
+    }
 
-      // Gửi cho các Admin khác (dùng view → ổn định)
+    // Gửi cho các Admin khác
+    try {
       const admins = await getAdminIds();
+      console.log("Danh sách admin nhận thông báo:", admins);
+
       for (const admin of admins) {
         if (admin.admin_id !== user.id) {
-          await axios.post(
-            `${supabaseUrl}/rest/v1/admin_notifications`,
-            {
-              to_admin_id: admin.admin_id,
-              from_role: "admin",
-              from_id: user.id,
-              message: messageForAdmin.replace("{tourName}", tourName),
-              type: typeForAdmin,
-              tour_id: tourId,
-              status: "unread",
-            },
-            {
-              headers: {
-                apikey: anonKey,
-                Authorization: `Bearer ${session.access_token}`,
-                "Content-Type": "application/json",
+          try {
+            await axios.post(
+              `${supabaseUrl}/rest/v1/admin_notifications`,
+              {
+                to_admin_id: admin.admin_id,
+                from_role: "admin",
+                from_id: user.id,
+                message: adminMessage,
+                type: typeForAdmin,
+                tour_id: tourId,
+                status: "unread",
               },
-            }
-          );
+              {
+                headers: {
+                  apikey: anonKey,
+                  Authorization: `Bearer ${session.access_token}`,
+                  "Content-Type": "application/json",
+                  Prefer: "return=minimal",
+                },
+              }
+            );
+            console.log(`Gửi thành công đến admin: ${admin.admin_id}`);
+          } catch (postErr) {
+            console.error(
+              `Lỗi gửi đến admin ${admin.admin_id}:`,
+              postErr.response?.data || postErr.message
+            );
+          }
         }
       }
-      console.log("Đã gửi thông báo đến Partner và các admin khác thành công!");
     } catch (err) {
-      console.error("Lỗi gửi thông báo đến Partner/Admin khác:", err);
-      toast.error("Lỗi gửi thông báo!");
+      console.error(
+        "Lỗi khi lấy danh sách hoặc gửi thông báo cho admin khác:",
+        err
+      );
     }
   };
 
@@ -188,7 +220,6 @@ const AdminDashboard = () => {
   const confirmApproveTour = async () => {
     const { tourId, tourName, partnerId } = approveTourModal;
     try {
-      // Cập nhật trạng thái tour
       await axios.patch(
         `${supabaseUrl}/rest/v1/tours?id=eq.${tourId}`,
         { status: "APPROVED" },
@@ -201,7 +232,6 @@ const AdminDashboard = () => {
         }
       );
 
-      // Gửi thông báo cho Partner + các Admin khác
       await notifyPartnerAndOtherAdmins(
         partnerId,
         tourName,
@@ -228,7 +258,58 @@ const AdminDashboard = () => {
     }
   };
 
-  // XÓA TOUR
+  // TỪ CHỐI TOUR
+  const openRejectTourModal = (tour) => {
+    setRejectTourModal({
+      isOpen: true,
+      tourId: tour.id,
+      tourName: tour.name,
+      partnerId: tour.partner_id,
+    });
+  };
+
+  const confirmRejectTour = async () => {
+    const { tourId, tourName, partnerId } = rejectTourModal;
+    try {
+      await axios.patch(
+        `${supabaseUrl}/rest/v1/tours?id=eq.${tourId}`,
+        { status: "REJECTED" },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      await notifyPartnerAndOtherAdmins(
+        partnerId,
+        tourName,
+        tourId,
+        `Tour "${tourName}" đã bị từ chối bởi Admin.`,
+        "tour_rejected",
+        `Admin "${user.full_name}" đã TỪ CHỐI tour "{tourName}"`,
+        "admin_rejected_tour"
+      );
+
+      toast.success("Đã từ chối tour và gửi thông báo!");
+      fetchAllTours();
+      fetchNotifications();
+    } catch (err) {
+      console.error("Lỗi từ chối tour:", err);
+      toast.error("Không thể từ chối tour!");
+    } finally {
+      setRejectTourModal({
+        isOpen: false,
+        tourId: null,
+        tourName: "",
+        partnerId: null,
+      });
+    }
+  };
+
+  // XÓA TOUR (chỉ khi PAUSED)
   const openDeleteTourModal = (tour) => {
     setDeleteTourModal({
       isOpen: true,
@@ -241,7 +322,6 @@ const AdminDashboard = () => {
   const confirmDeleteTour = async () => {
     const { tourId, tourName, partnerId } = deleteTourModal;
     try {
-      // Gửi thông báo trước
       await notifyPartnerAndOtherAdmins(
         partnerId,
         tourName,
@@ -252,7 +332,6 @@ const AdminDashboard = () => {
         "admin_deleted_tour"
       );
 
-      // Xóa tour sau
       await axios.delete(`${supabaseUrl}/rest/v1/tours?id=eq.${tourId}`, {
         headers: {
           apikey: anonKey,
@@ -276,7 +355,7 @@ const AdminDashboard = () => {
     }
   };
 
-  // ĐÁNH DẤU ĐỌC 1 THÔNG BÁO
+  // Xử lý thông báo
   const markAsRead = async (notifId) => {
     try {
       await axios.patch(
@@ -298,7 +377,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // ĐÁNH DẤU ĐỌC TẤT CẢ
   const openMarkAllReadModal = () => {
     if (unreadCount === 0) {
       toast.info("Không có thông báo nào chưa đọc!");
@@ -331,7 +409,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // XÓA TẤT CẢ THÔNG BÁO (chỉ của admin hiện tại)
   const openClearAllModal = () => {
     if (notifications.length === 0) {
       toast.info("Không có thông báo nào để xóa!");
@@ -359,7 +436,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // XÓA 1 THÔNG BÁO
   const openDeleteNotifModal = (notifId) => {
     setDeleteNotifModal({ isOpen: true, notifId });
   };
@@ -444,8 +520,14 @@ const AdminDashboard = () => {
         return "Tour được kích hoạt lại";
       case "tour_delete_request":
         return "Yêu cầu xóa tour";
+      case "tour_approved":
+        return "Tour đã được duyệt";
+      case "tour_rejected":
+        return "Tour bị từ chối";
       case "admin_approved_tour":
         return "Admin đã duyệt tour";
+      case "admin_rejected_tour":
+        return "Admin đã từ chối tour";
       case "admin_deleted_tour":
         return "Admin đã xóa tour";
       default:
@@ -491,7 +573,6 @@ const AdminDashboard = () => {
         </div>
 
         <div className="ad2-content">
-          {/* QUẢN LÝ TOURS */}
           {activeTab === "tours" && (
             <div className="ad2-table-wrapper">
               <div className="ad2-table-header">
@@ -550,15 +631,22 @@ const AdminDashboard = () => {
                         <td>{formatDate(tour.created_at)}</td>
                         <td className="ad2-actions">
                           {tour.status === "PENDING_APPROVAL" && (
-                            <button
-                              className="ad2-btn approve"
-                              onClick={() => openApproveTourModal(tour)}
-                            >
-                              Duyệt Tour
-                            </button>
+                            <>
+                              <button
+                                className="ad2-btn approve"
+                                onClick={() => openApproveTourModal(tour)}
+                              >
+                                Duyệt
+                              </button>
+                              <button
+                                className="ad2-btn reject"
+                                onClick={() => openRejectTourModal(tour)}
+                              >
+                                Từ chối
+                              </button>
+                            </>
                           )}
-                          {(tour.status === "APPROVED" ||
-                            tour.status === "PAUSED") && (
+                          {tour.status === "PAUSED" && (
                             <button
                               className="ad2-btn delete"
                               onClick={() => openDeleteTourModal(tour)}
@@ -575,7 +663,6 @@ const AdminDashboard = () => {
             </div>
           )}
 
-          {/* THÔNG BÁO */}
           {activeTab === "notifications" && (
             <div className="ad2-table-wrapper">
               <div className="ad2-table-header">
@@ -656,7 +743,6 @@ const AdminDashboard = () => {
             </div>
           )}
 
-          {/* Các tab placeholder khác */}
           {["orders", "users", "partners", "vouchers", "reviews"].includes(
             activeTab
           ) && (
@@ -690,6 +776,22 @@ const AdminDashboard = () => {
         onConfirm={confirmApproveTour}
         onCancel={() =>
           setApproveTourModal({
+            isOpen: false,
+            tourId: null,
+            tourName: "",
+            partnerId: null,
+          })
+        }
+      />
+
+      {/* Modal từ chối tour */}
+      <ConfirmModal
+        isOpen={rejectTourModal.isOpen}
+        title="Từ chối tour"
+        message={`Bạn có chắc chắn muốn TỪ CHỐI tour "${rejectTourModal.tourName}"?`}
+        onConfirm={confirmRejectTour}
+        onCancel={() =>
+          setRejectTourModal({
             isOpen: false,
             tourId: null,
             tourName: "",
