@@ -1,6 +1,6 @@
 /* ==============================
-   ALL TOURS LIST - TÊN CLASS: atl-*
-   4 THẺ MỖI DÒNG - ẢNH ỔN ĐỊNH
+   ALL TOURS LIST PAGE
+   Sử dụng TourCard component riêng
    ============================== */
 
 .atl-container {
@@ -74,138 +74,26 @@
   box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.15);
 }
 
-/* GRID - 4 CỘT CỐ ĐỊNH */
+/* GRID - 4 cột cố định */
 .atl-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 28px;
 }
 
-/* CARD */
-.atl-card {
+/* Khi chưa có dữ liệu */
+.atl-no-data {
+  text-align: center;
+  padding: 100px 20px;
+  color: #888;
+  font-size: 1.3rem;
   background: white;
   border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.08);
-  transition: all 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
-  position: relative;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.06);
+  grid-column: 1 / -1;
 }
 
-.atl-card:hover {
-  transform: translateY(-12px) scale(1.02);
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15);
-}
-
-/* IMAGE */
-.atl-image-wrapper {
-  position: relative;
-  height: 200px;
-  overflow: hidden;
-}
-
-.atl-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  transition: transform 0.5s ease;
-  display: block;
-}
-
-.atl-card:hover .atl-image {
-  transform: scale(1.1);
-}
-
-.atl-rating-badge {
-  position: absolute;
-  top: 12px;
-  right: 12px;
-  background: rgba(0, 0, 0, 0.7);
-  color: white;
-  padding: 6px 10px;
-  border-radius: 12px;
-  font-size: 0.85rem;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  backdrop-filter: blur(4px);
-}
-
-/* INFO */
-.atl-info {
-  padding: 24px;
-}
-
-.atl-info h3 {
-  margin: 0 0 10px;
-  font-size: 1.35rem;
-  font-weight: 600;
-  color: #1a1a1a;
-  line-height: 1.3;
-}
-
-.atl-duration {
-  color: #666;
-  font-size: 0.95rem;
-  margin-bottom: 14px;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.atl-meta {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 18px;
-}
-
-.atl-price {
-  font-size: 1.5rem;
-  font-weight: 700;
-  color: #e74c3c;
-}
-
-.atl-per-person {
-  color: #888;
-  font-size: 0.9rem;
-}
-
-/* BUTTON */
-.atl-btn-detail {
-  width: 100%;
-  padding: 14px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
-  color: white;
-  border: none;
-  border-radius: 12px;
-  font-size: 1.05rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-}
-
-.atl-btn-detail:hover {
-  background: linear-gradient(135deg, #5a6fd8, #6a4190);
-  transform: translateY(-1px);
-  box-shadow: 0 8px 20px rgba(102, 126, 234, 0.3);
-}
-
-.atl-btn-detail::after {
-  content: "→";
-  font-size: 1.1rem;
-  transition: transform 0.2s ease;
-}
-
-.atl-btn-detail:hover::after {
-  transform: translateX(4px);
-}
-
-/* RESPONSIVE - GIỮ 4 CỘT ĐẾN 1200px */
+/* RESPONSIVE */
 @media (max-width: 1200px) {
   .atl-grid {
     grid-template-columns: repeat(3, 1fr);
@@ -239,11 +127,5 @@
 @media (max-width: 480px) {
   .atl-container {
     padding: 32px 16px;
-  }
-  .atl-info {
-    padding: 20px;
-  }
-  .atl-price {
-    font-size: 1.35rem;
   }
 }
