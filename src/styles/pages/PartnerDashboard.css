@@ -171,7 +171,7 @@
   color: #1a1a1a;
 }
 
-/* BẢNG TOUR */
+/* BẢNG TOUR – ĐÃ THÊM CỘT ẢNH */
 .pd-tours-table {
   width: 100%;
   border-collapse: separate;
@@ -203,6 +203,30 @@
   background-color: #f8f9ff;
 }
 
+/* CỘT ẢNH ĐẦU TIÊN */
+.pd-tour-image-cell {
+  padding: 12px 16px;
+  text-align: center;
+  vertical-align: middle;
+  width: 110px;
+}
+
+.pd-tour-thumbnail {
+  width: 90px;
+  height: 68px;
+  object-fit: cover;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  background: #f0f0f0;
+  transition: all 0.3s ease;
+}
+
+.pd-tour-thumbnail:hover {
+  transform: scale(1.12);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* Tên tour */
 .pd-tour-name {
   font-weight: 600;
   color: #1a1a1a;
@@ -425,5 +449,38 @@
   .pd-tab {
     padding: 10px 16px;
     font-size: 0.9rem;
+  }
+
+  /* Ảnh nhỏ hơn trên tablet/mobile */
+  .pd-tour-thumbnail {
+    width: 75px;
+    height: 56px;
+  }
+
+  .pd-tour-image-cell {
+    width: 90px;
+    padding: 10px;
+  }
+
+  .pd-tours-table th,
+  .pd-tours-table td {
+    padding: 12px 10px;
+    font-size: 0.88rem;
+  }
+
+  .pd-tour-name {
+    font-size: 0.98rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .pd-tour-thumbnail {
+    width: 65px;
+    height: 48px;
+  }
+
+  .pd-tour-image-cell {
+    width: 75px;
+    padding: 8px;
   }
 }

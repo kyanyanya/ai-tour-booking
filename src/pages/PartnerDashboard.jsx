@@ -48,6 +48,10 @@ const PartnerDashboard = () => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+  // Placeholder ảnh đẹp khi chưa có hoặc lỗi load
+  const placeholderImage =
+    "https://images.unsplash.com/photo-1501785888041-af3ef285b470?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80";
+
   // Gửi thông báo đến tất cả Admin
   const notifyAllAdmins = async (message, type, tourId = null) => {
     if (!session?.access_token) return;
@@ -469,6 +473,7 @@ const PartnerDashboard = () => {
                 <table className="pd-tours-table">
                   <thead>
                     <tr>
+                      <th style={{ width: "100px" }}>Ảnh</th>
                       <th>Tên Tour</th>
                       <th>Địa điểm</th>
                       <th>Giá</th>
@@ -481,6 +486,17 @@ const PartnerDashboard = () => {
                   <tbody>
                     {tours.map((tour) => (
                       <tr key={tour.id}>
+                        <td className="pd-tour-image-cell">
+                          <img
+                            src={tour.image || placeholderImage}
+                            alt={tour.name}
+                            className="pd-tour-thumbnail"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.src = placeholderImage;
+                            }}
+                          />
+                        </td>
                         <td className="pd-tour-name">{tour.name}</td>
                         <td>{tour.location || "-"}</td>
                         <td>{formatPrice(tour.price)}</td>
@@ -496,7 +512,6 @@ const PartnerDashboard = () => {
                         </td>
                         <td>{formatDate(tour.created_at)}</td>
                         <td className="pd-actions">
-                          {/* Nút Sửa - cho mọi tour */}
                           <button
                             className="pd-btn edit"
                             onClick={() => openEditTour(tour)}
@@ -504,7 +519,6 @@ const PartnerDashboard = () => {
                             Sửa
                           </button>
 
-                          {/* Tạm dừng / Kích hoạt */}
                           {(tour.status === "APPROVED" ||
                             tour.status === "PAUSED") && (
                             <button
@@ -519,7 +533,6 @@ const PartnerDashboard = () => {
                             </button>
                           )}
 
-                          {/* Xóa trực tiếp khi bị từ chối */}
                           {tour.status === "REJECTED" && (
                             <button
                               className="pd-btn delete"
@@ -537,6 +550,7 @@ const PartnerDashboard = () => {
             </div>
           )}
 
+          {/* Các tab khác giữ nguyên */}
           {activeTab === "notifications" && (
             <div className="pd-table-wrapper">
               <div className="pd-table-header">
@@ -649,7 +663,7 @@ const PartnerDashboard = () => {
         </div>
       </div>
 
-      {/* Form tạo / sửa tour */}
+      {/* Các modal giữ nguyên */}
       {isFormOpen && (
         <div className="modal-backdrop" onClick={closeForm}>
           <div onClick={(e) => e.stopPropagation()}>
@@ -662,7 +676,6 @@ const PartnerDashboard = () => {
         </div>
       )}
 
-      {/* Modal tạm dừng / kích hoạt */}
       <ConfirmModal
         isOpen={toggleStatusModal.isOpen}
         title="Xác nhận thay đổi trạng thái"
@@ -682,7 +695,6 @@ const PartnerDashboard = () => {
         }
       />
 
-      {/* Modal xóa tour bị từ chối */}
       <ConfirmModal
         isOpen={deleteTourModal.isOpen}
         title="Xóa tour"
@@ -693,7 +705,6 @@ const PartnerDashboard = () => {
         }
       />
 
-      {/* Modal thông báo */}
       <ConfirmModal
         isOpen={deleteNotifModal.isOpen}
         title="Xóa thông báo"

@@ -1,5 +1,5 @@
 /* ========================================
-   ADMIN DASHBOARD – ĐỒNG BỘ 100% NÚT HÀNH ĐỘNG VỚI PARTNER DASHBOARD
+   ADMIN DASHBOARD – ĐỒNG BỘ 100% VỚI PARTNER DASHBOARD + CỘT ẢNH
    ======================================== */
 
 .ad2-container {
@@ -66,7 +66,7 @@
   color: #4361ee;
 }
 
-/* BADGE SỐ THÔNG BÁO */
+/* BADGE SỐ THÔNG BÁO TRONG TAB */
 .ad2-tab span {
   background: #ef4444;
   color: white;
@@ -105,7 +105,7 @@
   color: #1a1a1a;
 }
 
-/* BẢNG TOUR ADMIN */
+/* BẢNG TOUR ADMIN – ĐÃ CÓ CỘT ẢNH */
 .ad2-tours-table {
   width: 100%;
   border-collapse: separate;
@@ -137,6 +137,30 @@
   background-color: #f8f9ff;
 }
 
+/* CỘT ẢNH ĐẦU TIÊN */
+.ad2-tour-image-cell {
+  padding: 12px 16px;
+  text-align: center;
+  vertical-align: middle;
+  width: 110px;
+}
+
+.ad2-tour-thumbnail {
+  width: 90px;
+  height: 68px;
+  object-fit: cover;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+  background: #f0f0f0;
+  transition: all 0.3s ease;
+}
+
+.ad2-tour-thumbnail:hover {
+  transform: scale(1.12);
+  box-shadow: 0 10px 24px rgba(0, 0, 0, 0.2);
+}
+
+/* Tên tour */
 .ad2-tour-name {
   font-weight: 600;
   color: #1a1a1a;
@@ -170,6 +194,115 @@
 .ad2-status.paused {
   background: #e0e0e0;
   color: #666;
+}
+
+/* CĂN NÚT HÀNH ĐỘNG TRONG CỘT */
+.ad2-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+}
+
+/* NÚT HÀNH ĐỘNG CHUNG – ĐỒNG BỘ VỚI PARTNER */
+.ad2-btn {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ad2-btn.approve {
+  background: #10b981;
+  color: white;
+}
+
+.ad2-btn.approve:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.ad2-btn.reject {
+  background: #fb923c;
+  color: white;
+}
+
+.ad2-btn.reject:hover {
+  background: #f97316;
+  transform: translateY(-1px);
+}
+
+.ad2-btn.delete {
+  background: #ef4444;
+  color: white;
+}
+
+.ad2-btn.delete:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+/* NÚT TRONG TAB THÔNG BÁO */
+.ad2-notif-actions {
+  display: flex;
+  gap: 12px;
+  margin-left: auto;
+}
+
+.ad2-notif-actions .ad2-btn {
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ad2-notif-actions .ad2-btn.secondary {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.ad2-notif-actions .ad2-btn.danger {
+  background: #ef4444;
+  color: white;
+}
+
+.ad2-notif-actions .ad2-btn.danger:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+.ad2-notif-actions .ad2-btn.secondary:hover {
+  background: #c7d2fe;
+  transform: translateY(-1px);
+}
+
+/* NÚT XÓA THÔNG BÁO RIÊNG */
+.ad2-btn.notif-delete {
+  background: transparent;
+  color: #ef4444;
+  font-size: 1.2rem;
+  padding: 4px 8px;
+  margin-left: auto;
+  border: none;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ad2-btn.notif-delete:hover {
+  background: #fee2e2;
+  border-radius: 6px;
+}
+
+/* HOVER CHUNG CHO TẤT CẢ NÚT */
+.ad2-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
 }
 
 /* KHI CHƯA CÓ DỮ LIỆU */
@@ -235,128 +368,10 @@
   font-size: 0.85rem;
 }
 
-/* NÚT HÀNH ĐỘNG TRONG TAB THÔNG BÁO – ĐỒNG BỘ VỚI PARTNER */
-.ad2-notif-actions {
-  display: flex;
-  gap: 12px;
-  margin-left: auto;
-}
-
-.ad2-notif-actions .ad2-btn {
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.ad2-notif-actions .ad2-btn.secondary {
-  background: #e0e7ff;
-  color: #4338ca;
-}
-
-.ad2-notif-actions .ad2-btn.danger {
-  background: #ef4444;
-  color: white;
-}
-
-.ad2-notif-actions .ad2-btn.danger:hover {
-  background: #dc2626;
-  transform: translateY(-1px);
-}
-
-.ad2-notif-actions .ad2-btn.secondary:hover {
-  background: #c7d2fe;
-  transform: translateY(-1px);
-}
-
-/* NÚT XÓA THÔNG BÁO RIÊNG – ĐỒNG BỘ */
-.ad2-btn.notif-delete {
-  background: transparent;
-  color: #ef4444;
-  font-size: 1.2rem;
-  padding: 4px 8px;
-  margin-left: auto;
-  border: none;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.ad2-btn.notif-delete:hover {
-  background: #fee2e2;
-  border-radius: 6px;
-}
-
-/* NÚT DUYỆT & XÓA TOUR – ĐỒNG BỘ KÍCH THƯỚC VỚI PARTNER */
-.ad2-btn.approve,
-.ad2-btn.delete {
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-}
-
-.ad2-btn.approve {
-  background: #10b981;
-  color: white;
-}
-
-.ad2-btn.approve:hover {
-  background: #059669;
-  transform: translateY(-1px);
-}
-
-.ad2-btn.delete {
-  background: #ef4444;
-  color: white;
-}
-
-.ad2-btn.delete:hover {
-  background: #dc2626;
-  transform: translateY(-1px);
-}
-
-/* HOVER CHUNG CHO TẤT CẢ NÚT */
-.ad2-btn:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-
-/* THÔNG BÁO NỘI DUNG */
 .ad2-notif-message {
   margin: 0;
   color: #444;
   line-height: 1.5;
-}
-/* NÚT TỪ CHỐI TOUR */
-.ad2-btn.reject {
-  padding: 8px 16px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  background: #fb923c; /* Cam đậm nhẹ */
-  color: white;
-  margin-left: 8px;
-}
-
-.ad2-btn.reject:hover {
-  background: #f97316;
-  transform: translateY(-1px);
-}
-
-/* Căn nút hành động trong cột */
-.ad2-actions {
-  display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
 }
 
 /* RESPONSIVE */
@@ -380,5 +395,48 @@
   .ad2-tab {
     padding: 10px 16px;
     font-size: 0.9rem;
+  }
+
+  /* Ảnh nhỏ hơn trên tablet/mobile */
+  .ad2-tour-thumbnail {
+    width: 75px;
+    height: 56px;
+  }
+
+  .ad2-tour-image-cell {
+    width: 90px;
+    padding: 10px;
+  }
+
+  .ad2-tours-table th,
+  .ad2-tours-table td {
+    padding: 12px 10px;
+    font-size: 0.88rem;
+  }
+
+  .ad2-tour-name {
+    font-size: 0.98rem;
+  }
+
+  /* Nút hành động xếp dọc trên mobile */
+  .ad2-actions {
+    flex-direction: column;
+  }
+
+  .ad2-btn {
+    width: 100%;
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .ad2-tour-thumbnail {
+    width: 65px;
+    height: 48px;
+  }
+
+  .ad2-tour-image-cell {
+    width: 75px;
+    padding: 8px;
   }
 }
