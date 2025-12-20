@@ -56,6 +56,10 @@ const AdminDashboard = () => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
+  // Placeholder ảnh khi chưa có hoặc lỗi
+  const placeholderImage =
+    "https://images.unsplash.com/photo-1501785888041-af3ef285b470?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80";
+
   // Lấy danh sách admin ids từ view (UUID)
   const getAdminIds = async () => {
     try {
@@ -109,57 +113,39 @@ const AdminDashboard = () => {
           },
         }
       );
-      console.log("Gửi thông báo cho Partner thành công");
     } catch (err) {
-      console.error(
-        "Lỗi gửi thông báo cho Partner:",
-        err.response?.data || err.message
-      );
+      console.error("Lỗi gửi thông báo cho Partner:", err);
       toast.warn("Không thể gửi thông báo cho Partner");
     }
 
     // Gửi cho các Admin khác
     try {
       const admins = await getAdminIds();
-      console.log("Danh sách admin nhận thông báo:", admins);
-
       for (const admin of admins) {
         if (admin.admin_id !== user.id) {
-          try {
-            await axios.post(
-              `${supabaseUrl}/rest/v1/admin_notifications`,
-              {
-                to_admin_id: admin.admin_id,
-                from_role: "admin",
-                from_id: user.id,
-                message: adminMessage,
-                type: typeForAdmin,
-                tour_id: tourId,
-                status: "unread",
+          await axios.post(
+            `${supabaseUrl}/rest/v1/admin_notifications`,
+            {
+              to_admin_id: admin.admin_id,
+              from_role: "admin",
+              from_id: user.id,
+              message: adminMessage,
+              type: typeForAdmin,
+              tour_id: tourId,
+              status: "unread",
+            },
+            {
+              headers: {
+                apikey: anonKey,
+                Authorization: `Bearer ${session.access_token}`,
+                "Content-Type": "application/json",
               },
-              {
-                headers: {
-                  apikey: anonKey,
-                  Authorization: `Bearer ${session.access_token}`,
-                  "Content-Type": "application/json",
-                  Prefer: "return=minimal",
-                },
-              }
-            );
-            console.log(`Gửi thành công đến admin: ${admin.admin_id}`);
-          } catch (postErr) {
-            console.error(
-              `Lỗi gửi đến admin ${admin.admin_id}:`,
-              postErr.response?.data || postErr.message
-            );
-          }
+            }
+          );
         }
       }
     } catch (err) {
-      console.error(
-        "Lỗi khi lấy danh sách hoặc gửi thông báo cho admin khác:",
-        err
-      );
+      console.error("Lỗi gửi thông báo cho admin khác:", err);
     }
   };
 
@@ -597,6 +583,7 @@ const AdminDashboard = () => {
                 <table className="ad2-tours-table">
                   <thead>
                     <tr>
+                      <th style={{ width: "110px" }}>Ảnh</th>
                       <th>Tên Tour</th>
                       <th>Tên Partner</th>
                       <th>Địa điểm</th>
@@ -610,6 +597,17 @@ const AdminDashboard = () => {
                   <tbody>
                     {tours.map((tour) => (
                       <tr key={tour.id}>
+                        <td className="ad2-tour-image-cell">
+                          <img
+                            src={tour.image || placeholderImage}
+                            alt={tour.name}
+                            className="ad2-tour-thumbnail"
+                            loading="lazy"
+                            onError={(e) => {
+                              e.currentTarget.src = placeholderImage;
+                            }}
+                          />
+                        </td>
                         <td className="ad2-tour-name">{tour.name}</td>
                         <td>
                           <strong>
@@ -663,6 +661,7 @@ const AdminDashboard = () => {
             </div>
           )}
 
+          {/* Các tab khác giữ nguyên */}
           {activeTab === "notifications" && (
             <div className="ad2-table-wrapper">
               <div className="ad2-table-header">
@@ -768,7 +767,7 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* Modal duyệt tour */}
+      {/* Các modal giữ nguyên */}
       <ConfirmModal
         isOpen={approveTourModal.isOpen}
         title="Duyệt tour"
@@ -784,7 +783,6 @@ const AdminDashboard = () => {
         }
       />
 
-      {/* Modal từ chối tour */}
       <ConfirmModal
         isOpen={rejectTourModal.isOpen}
         title="Từ chối tour"
@@ -800,7 +798,6 @@ const AdminDashboard = () => {
         }
       />
 
-      {/* Modal xóa tour */}
       <ConfirmModal
         isOpen={deleteTourModal.isOpen}
         title="Xóa tour"
@@ -816,7 +813,6 @@ const AdminDashboard = () => {
         }
       />
 
-      {/* Modal xóa 1 thông báo */}
       <ConfirmModal
         isOpen={deleteNotifModal.isOpen}
         title="Xóa thông báo"
@@ -825,7 +821,6 @@ const AdminDashboard = () => {
         onCancel={() => setDeleteNotifModal({ isOpen: false, notifId: null })}
       />
 
-      {/* Modal đánh dấu đọc tất cả */}
       <ConfirmModal
         isOpen={markAllReadModal}
         title="Đánh dấu đọc tất cả"
@@ -834,7 +829,6 @@ const AdminDashboard = () => {
         onCancel={() => setMarkAllReadModal(false)}
       />
 
-      {/* Modal xóa tất cả thông báo */}
       <ConfirmModal
         isOpen={clearAllModal}
         title="Xóa tất cả thông báo"
