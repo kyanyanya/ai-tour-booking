@@ -1,20 +1,114 @@
 // src/pages/ContactInfo.jsx
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
+import axios from "axios";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import { toast } from "react-toastify";
+import { useAuth } from "../auth/AuthContext";
 import "../styles/pages/ContactInfo.css";
 
 const ContactInfo = () => {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { session } = useAuth();
 
-  // SỬA: Dùng setPassengerCount để thay đổi giá trị khi nhấn (demo)
-  const [passengerCount, setPassengerCount] = useState("2 người lớn, 0 trẻ em");
+  // Lấy dữ liệu từ state của TourDetailPage
+  const {
+    bookingId,
+    tour,
+    numberOfPeople = 1,
+    totalPrice,
+    bookingDate,
+  } = location.state || {};
 
-  const handlePassengerClick = () => {
-    // Demo: Thay đổi giá trị khi nhấn vào ô
-    setPassengerCount("3 người lớn, 1 trẻ em");
+  // Nếu không có dữ liệu → redirect về trang tour (tránh truy cập trực tiếp)
+  React.useEffect(() => {
+    if (!bookingId || !tour) {
+      toast.error("Thông tin đặt tour không hợp lệ!");
+      navigate("/tours");
+    }
+  }, [bookingId, tour, navigate]);
+
+  // State cho form
+  const [contactName, setContactName] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [contactCountry, setContactCountry] = useState("Việt Nam");
+  const [notes, setNotes] = useState("");
+  const [pickupTime, setPickupTime] = useState("");
+  const [agreeTerms, setAgreeTerms] = useState(false);
+
+  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+  const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+    }).format(price);
   };
+
+  const handleContinue = async () => {
+    if (!contactName || !contactPhone) {
+      toast.error("Vui lòng điền họ tên và số điện thoại!");
+      return;
+    }
+    if (!agreeTerms) {
+      toast.error("Vui lòng đồng ý với điều khoản và chính sách!");
+      return;
+    }
+
+    try {
+      // Cập nhật thông tin liên hệ vào booking
+      await axios.patch(
+        `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`,
+        {
+          contact_name: contactName,
+          contact_email: contactEmail || null,
+          contact_phone: contactPhone,
+          contact_country: contactCountry,
+          notes: notes || null,
+          // pickup_time nếu bạn muốn lưu riêng, hiện tại để trong notes
+        },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal",
+          },
+        }
+      );
+
+      toast.success("Thông tin liên hệ đã được lưu!");
+
+      // Chuyển sang trang thanh toán
+      navigate("/checkout", {
+        state: {
+          bookingId,
+          tour,
+          numberOfPeople,
+          totalPrice,
+          bookingDate,
+          contactInfo: {
+            contactName,
+            contactEmail,
+            contactPhone,
+            contactCountry,
+            notes,
+          },
+        },
+      });
+    } catch (err) {
+      console.error("Lỗi cập nhật thông tin liên hệ:", err);
+      toast.error("Không thể lưu thông tin. Vui lòng thử lại!");
+    }
+  };
+
+  if (!tour) {
+    return null; // Đang redirect ở useEffect
+  }
 
   return (
     <>
@@ -45,68 +139,93 @@ const ContactInfo = () => {
                 <h3>Thông tin người đặt</h3>
                 <div className="ci-input-row">
                   <div className="ci-input-group">
-                    <label>Họ và tên</label>
-                    <input type="text" placeholder="Họ và tên" />
+                    <label>Họ và tên *</label>
+                    <input
+                      type="text"
+                      placeholder="Họ và tên"
+                      value={contactName}
+                      onChange={(e) => setContactName(e.target.value)}
+                    />
                   </div>
                   <div className="ci-input-group">
                     <label>Email</label>
-                    <input type="email" placeholder="Email" />
+                    <input
+                      type="email"
+                      placeholder="Email"
+                      value={contactEmail}
+                      onChange={(e) => setContactEmail(e.target.value)}
+                    />
                   </div>
                 </div>
                 <div className="ci-input-row">
                   <div className="ci-input-group">
-                    <label>Số điện thoại</label>
-                    <input type="tel" placeholder="Số điện thoại" />
+                    <label>Số điện thoại *</label>
+                    <input
+                      type="tel"
+                      placeholder="Số điện thoại"
+                      value={contactPhone}
+                      onChange={(e) => setContactPhone(e.target.value)}
+                    />
                   </div>
                   <div className="ci-input-group">
                     <label>Quốc gia/Khu vực</label>
-                    <input type="text" placeholder="Quốc gia/Khu vực" />
+                    <input
+                      type="text"
+                      placeholder="Quốc gia/Khu vực"
+                      value={contactCountry}
+                      onChange={(e) => setContactCountry(e.target.value)}
+                    />
                   </div>
                 </div>
               </div>
 
-              {/* Hành khách */}
+              {/* Hành khách - hiển thị số lượng đã chọn */}
               <div className="ci-section">
                 <h3>Hành khách</h3>
                 <div className="ci-input-group full">
                   <label>Số lượng hành khách</label>
-                  <div
-                    className="ci-passenger-select"
-                    onClick={handlePassengerClick}
-                  >
+                  <div className="ci-passenger-display">
                     <input
                       type="text"
-                      value={passengerCount}
+                      value={`${numberOfPeople} người lớn`}
                       readOnly
-                      placeholder="Chọn số lượng"
                     />
-                    <span className="ci-dropdown-icon"></span>
                   </div>
                 </div>
-                <div className="ci-input-row">
-                  <div className="ci-input-group">
-                    <label>Hành khách 1 - Họ tên</label>
-                    <input type="text" placeholder="Hành khách 1 - Họ tên" />
-                  </div>
-                  <div className="ci-input-group">
-                    <label>Hành khách 2 - Họ tên</label>
-                    <input type="text" placeholder="Hành khách 2 - Họ tên" />
-                  </div>
-                </div>
+                <p
+                  style={{
+                    fontSize: "0.9rem",
+                    color: "#64748b",
+                    marginTop: "8px",
+                  }}
+                >
+                  Bạn có thể chỉnh sửa số lượng ở bước trước.
+                </p>
               </div>
 
               {/* Yêu cầu đặc biệt */}
               <div className="ci-section">
-                <h3>Yêu cầu đặc biệt</h3>
+                <h3>Yêu cầu đặc biệt (tùy chọn)</h3>
                 <div className="ci-input-group full">
                   <label>
-                    Ghi chú cho nhà cung cấp (dị ứng, kỷ niệm, v.v.)
+                    Ghi chú cho nhà cung cấp (dị ứng, kỷ niệm, yêu cầu đặc
+                    biệt...)
                   </label>
-                  <textarea rows="3" placeholder="Nhập ghi chú..."></textarea>
+                  <textarea
+                    rows="3"
+                    placeholder="Nhập ghi chú..."
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                  ></textarea>
                 </div>
                 <div className="ci-input-group full">
                   <label>Giờ đón mong muốn</label>
-                  <input type="text" placeholder="Giờ đón mong muốn" />
+                  <input
+                    type="text"
+                    placeholder="Ví dụ: 8:00 sáng"
+                    value={pickupTime}
+                    onChange={(e) => setPickupTime(e.target.value)}
+                  />
                 </div>
               </div>
 
@@ -114,9 +233,14 @@ const ContactInfo = () => {
               <div className="ci-section">
                 <h3>Chính sách & xác nhận</h3>
                 <div className="ci-checkbox-item">
-                  <input type="checkbox" id="terms" />
+                  <input
+                    type="checkbox"
+                    id="terms"
+                    checked={agreeTerms}
+                    onChange={(e) => setAgreeTerms(e.target.checked)}
+                  />
                   <label htmlFor="terms">
-                    Tôi đồng ý với Điều khoản & Chính sách hủy
+                    Tôi đồng ý với Điều khoản dịch vụ & Chính sách hủy tour
                   </label>
                 </div>
                 <p className="ci-note">
@@ -127,44 +251,38 @@ const ContactInfo = () => {
 
               {/* Action Buttons */}
               <div className="ci-actions">
-                <button
-                  className="ci-btn-back"
-                  onClick={() => navigate("/cart")}
-                >
+                <button className="ci-btn-back" onClick={() => navigate(-1)}>
                   Quay lại
                 </button>
-                <button
-                  className="ci-btn-next"
-                  onClick={() => navigate("/checkout")}
-                >
+                <button className="ci-btn-next" onClick={handleContinue}>
                   Tiếp tục thanh toán
                 </button>
               </div>
             </div>
 
-            {/* Right: Order Summary */}
+            {/* Right: Order Summary - dynamic */}
             <div className="ci-summary-section">
               <h3>Tóm tắt đơn hàng</h3>
 
               <div className="ci-order-item">
                 <img
-                  src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?ixlib=rb-4.0.3&auto=format&fit=crop&w=200&q=80"
-                  alt="Vịnh Hạ Long"
+                  src={tour.image || "https://via.placeholder.com/200"}
+                  alt={tour.name}
                 />
                 <div className="ci-order-info">
-                  <h4>Vịnh Hạ Long 2N1Đ - Du thuyền 5*</h4>
-                  <p>Quảng Ninh | 20/12/2025</p>
+                  <h4>{tour.name}</h4>
+                  <p>
+                    {tour.location} | Ngày khởi hành:{" "}
+                    {new Date(bookingDate).toLocaleDateString("vi-VN")}
+                  </p>
+                  <p>{numberOfPeople} người lớn</p>
                 </div>
               </div>
 
               <div className="ci-price-breakdown">
                 <div className="ci-price-row">
-                  <span>Giá tour</span>
-                  <span>6.600.000đ</span>
-                </div>
-                <div className="ci-price-row">
-                  <span>Mã giảm HALONG10</span>
-                  <span className="ci-discount">-420.000đ</span>
+                  <span>Giá tour ({numberOfPeople} người)</span>
+                  <span>{formatPrice(totalPrice)}</span>
                 </div>
                 <div className="ci-price-row">
                   <span>Phí xử lý</span>
@@ -172,19 +290,7 @@ const ContactInfo = () => {
                 </div>
                 <div className="ci-price-total">
                   <span>Tổng tạm tính</span>
-                  <span>6.180.000đ</span>
-                </div>
-              </div>
-
-              <div className="ci-addon">
-                <h4>Tiện ích bổ sung</h4>
-                <div className="ci-ai-suggestion">
-                  <strong>Gợi ý thông minh</strong>
-                  <p>
-                    Thêm đưa đón sân bay + bữa trưa hải sản (249.000đ) cho nhóm
-                    2 người.
-                  </p>
-                  <button className="ci-btn-add">+ Thêm vào đơn</button>
+                  <span>{formatPrice(totalPrice)}</span>
                 </div>
               </div>
 
