@@ -15,6 +15,7 @@ import PartnerDashboard from "./pages/PartnerDashboard";
 import Cart from "./pages/Cart.jsx";
 import ContactInfo from "./pages/ContactInfo";
 import Checkout from "./pages/Checkout";
+import PaymentResult from "./pages/PaymentResult";
 
 function App() {
   return (
@@ -32,6 +33,7 @@ function App() {
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout/contact" element={<ContactInfo />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/checkout/result" element={<PaymentResult />} />
         </Routes>
 
         {/* TOAST CONTAINER */}
