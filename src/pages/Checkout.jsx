@@ -1,13 +1,13 @@
-// src/pages/Checkout.jsx
 import React from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { toast } from "react-toastify";
+import CryptoJS from "crypto-js";
 import "../styles/pages/Checkout.css";
 
 const Checkout = () => {
-  const [paymentMethod, setPaymentMethod] = React.useState("card");
+  const [paymentMethod, setPaymentMethod] = React.useState("vnpay");
   const [loading, setLoading] = React.useState(false);
   const navigate = useNavigate();
   const location = useLocation();
@@ -20,15 +20,18 @@ const Checkout = () => {
     bookingDate,
   } = location.state || {};
 
+  // LẤY CẤU HÌNH TỪ BIẾN MÔI TRƯỜNG (.ENV)
+  const vnp_TmnCode = import.meta.env.VITE_VNP_TMNCODE;
+  const vnp_HashSecret = import.meta.env.VITE_VNP_HASHSECRET;
+  const vnp_Url = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
+  const vnp_ReturnUrl = "https://ai-tour-booking.vercel.app/checkout/result";
+
   React.useEffect(() => {
     if (!bookingId || !tour || !totalPrice) {
       toast.error("Thông tin thanh toán không hợp lệ!");
       navigate("/tours");
     }
   }, [bookingId, tour, totalPrice, navigate]);
-
-  const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-  const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -38,44 +41,63 @@ const Checkout = () => {
   };
 
   const handlePay = async () => {
-    if (paymentMethod !== "card") {
-      toast.info("Phương thức này chưa được hỗ trợ!");
+    if (paymentMethod !== "vnpay") {
+      toast.info("Vui lòng chọn phương thức VNPay!");
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await fetch(
-        `${supabaseUrl}/functions/v1/create-vnpay-payment`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${supabaseAnonKey}`,
-          },
-          body: JSON.stringify({
-            totalPrice,
-            bookingId,
-          }),
-        }
+      const date = new Date();
+      // Định dạng thời gian theo yêu cầu VNPay: yyyyMMddHHmmss
+      const createDate =
+        date.getFullYear().toString() +
+        (date.getMonth() + 1).toString().padStart(2, "0") +
+        date.getDate().toString().padStart(2, "0") +
+        date.getHours().toString().padStart(2, "0") +
+        date.getMinutes().toString().padStart(2, "0") +
+        date.getSeconds().toString().padStart(2, "0");
+
+      let vnp_Params = {
+        vnp_Version: "2.1.0",
+        vnp_Command: "pay",
+        vnp_TmnCode: vnp_TmnCode,
+        vnp_Locale: "vn",
+        vnp_CurrCode: "VND",
+        vnp_TxnRef: bookingId,
+        vnp_OrderInfo: `Thanh toan tour ${tour.name} - Ma: ${bookingId}`,
+        vnp_OrderType: "other",
+        vnp_Amount: Math.round(totalPrice * 100), // Nhân 100 và làm tròn để tránh số thập phân
+        vnp_ReturnUrl: vnp_ReturnUrl,
+        vnp_IpAddr: "127.0.0.1",
+        vnp_CreateDate: createDate,
+      };
+
+      // 1. Sắp xếp các tham số theo alphabet (bắt buộc đối với VNPay)
+      const sortedParams = Object.keys(vnp_Params)
+        .sort()
+        .reduce((obj, key) => {
+          obj[key] = vnp_Params[key];
+          return obj;
+        }, {});
+
+      // 2. Tạo chuỗi query string
+      const signData = new URLSearchParams(sortedParams).toString();
+
+      // 3. Tạo chữ ký HMAC-SHA512 bằng CryptoJS
+      const hmac = CryptoJS.HmacSHA512(signData, vnp_HashSecret).toString(
+        CryptoJS.enc.Hex
       );
 
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Lỗi server: ${response.status} - ${errorText}`);
-      }
+      // 4. Tạo URL thanh toán hoàn chỉnh
+      const finalUrl = `${vnp_Url}?${signData}&vnp_SecureHash=${hmac}`;
 
-      const { paymentUrl } = await response.json();
-
-      if (!paymentUrl) {
-        throw new Error("Không nhận được URL thanh toán");
-      }
-
-      window.location.href = paymentUrl;
+      // Chuyển hướng sang VNPay bằng assign để vượt lỗi ESLint
+      window.location.assign(finalUrl);
     } catch (err) {
-      console.error("Lỗi thanh toán:", err);
-      toast.error("Không thể tạo thanh toán. Vui lòng thử lại!");
+      console.error("Lỗi thanh toán VNPay:", err);
+      toast.error("Không thể kết nối cổng thanh toán. Vui lòng thử lại!");
       setLoading(false);
     }
   };
@@ -85,13 +107,12 @@ const Checkout = () => {
   return (
     <>
       <Header />
-
       <div className="checkout-container">
         <div className="checkout-wrapper">
           <div className="breadcrumb">
             <div className="breadcrumb-left">
               <h1>Thanh toán • Bước 2: Thông tin thanh toán</h1>
-              <p>Giao dịch được mã hóa và bảo mật bởi Stripe</p>
+              <p>Hệ thống hỗ trợ thanh toán qua VNPay Sandbox</p>
             </div>
             <div className="breadcrumb-steps">
               <span className="step-past">Bước 1/2</span>
@@ -102,47 +123,45 @@ const Checkout = () => {
           <div className="checkout-main">
             <div className="payment-section">
               <h2>Phương thức thanh toán</h2>
-
               <div className="payment-options">
                 <div
                   className={`option ${
-                    paymentMethod === "card" ? "active" : ""
+                    paymentMethod === "vnpay" ? "active" : ""
                   }`}
-                  onClick={() => setPaymentMethod("card")}
+                  onClick={() => setPaymentMethod("vnpay")}
                 >
-                  <span className="icon">
-                    Thẻ tín dụng / Thẻ ghi nợ (Stripe)
-                  </span>
-                  <span className="tag">Khuyến nghị</span>
+                  <span className="icon">VNPay (ATM / Ngân hàng nội địa)</span>
+                  <span className="tag">Sandbox</span>
                 </div>
               </div>
 
-              {paymentMethod === "card" && (
-                <div className="card-info">
+              <div className="card-info">
+                <p>Bạn sẽ được chuyển hướng an toàn đến cổng VNPay.</p>
+                <p>
+                  <strong>Tổng tiền: {formatPrice(totalPrice)}</strong>
+                </p>
+
+                <div
+                  style={{
+                    fontSize: "0.85rem",
+                    background: "#fdf2f2",
+                    padding: "12px",
+                    borderRadius: "8px",
+                    marginTop: "15px",
+                    border: "1px solid #ffcdd2",
+                  }}
+                >
                   <p>
-                    Bạn sẽ được chuyển hướng đến cổng thanh toán Stripe để hoàn
-                    tất.
+                    <strong>Thẻ Test NCB (Dành cho Demo):</strong>
                   </p>
-                  <p>
-                    <strong>Tổng thanh toán: {formatPrice(totalPrice)}</strong>
-                  </p>
-                  <p
-                    style={{
-                      fontSize: "0.9rem",
-                      color: "#d32f2f",
-                      marginTop: "10px",
-                    }}
-                  >
-                    <strong>Thẻ test:</strong> 4242 4242 4242 4242 | Ngày bất kỳ
-                    | CVC bất kỳ
-                  </p>
+                  <p>Số thẻ: 9704198526191432198</p>
+                  <p>Tên: NGUYEN VAN A | Ngày: 07/15 | OTP: 123456</p>
                 </div>
-              )}
+              </div>
             </div>
 
             <div className="summary-section">
-              {/* Giữ nguyên tóm tắt đơn hàng như cũ */}
-              <h3>Tóm tắt đơn hàng</h3>
+              <h3>Tóm tắt chuyến đi</h3>
               <div className="order-item">
                 <img
                   src={tour.image || "https://via.placeholder.com/200"}
@@ -154,27 +173,19 @@ const Checkout = () => {
                     {tour.location} |{" "}
                     {new Date(bookingDate).toLocaleDateString("vi-VN")}
                   </p>
-                  <p>{numberOfPeople} người lớn</p>
+                  <p>{numberOfPeople} người</p>
                 </div>
               </div>
 
               <div className="price-breakdown">
                 <div className="price-row">
-                  <span>Giá tour</span>
+                  <span>Tạm tính</span>
                   <span>{formatPrice(totalPrice)}</span>
-                </div>
-                <div className="price-row">
-                  <span>Phí xử lý</span>
-                  <span>0đ</span>
                 </div>
                 <div className="price-total">
-                  <span>Tổng thanh toán</span>
+                  <span>Tổng cộng</span>
                   <span>{formatPrice(totalPrice)}</span>
                 </div>
-              </div>
-
-              <div className="security-badge">
-                <span>Thanh toán an toàn với Stripe • SSL 256-bit</span>
               </div>
 
               <div className="action-buttons">
@@ -186,14 +197,13 @@ const Checkout = () => {
                   onClick={handlePay}
                   disabled={loading}
                 >
-                  {loading ? "Đang xử lý..." : "Thanh toán & hoàn tất"}
+                  {loading ? "Đang kết nối..." : "Xác nhận & Thanh toán"}
                 </button>
               </div>
             </div>
           </div>
         </div>
       </div>
-
       <Footer />
     </>
   );
