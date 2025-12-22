@@ -346,6 +346,13 @@
   font-weight: 500;
 }
 
+/* Hiển thị số lượng hành khách không cho edit */
+.ci-passenger-display input {
+  background: #f1f5f9;
+  cursor: not-allowed;
+  color: #64748b;
+}
+
 /* Responsive */
 @media (max-width: 992px) {
   .ci-main {

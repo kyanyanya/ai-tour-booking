@@ -1,8 +1,11 @@
 // src/components/cards/TourCard.jsx
 import React from "react";
+import { useNavigate } from "react-router-dom";
 import "../../styles/components/cards/TourCard.css";
 
 const TourCard = ({ tour }) => {
+  const navigate = useNavigate();
+
   const formatPrice = (price) => {
     return price ? price.toLocaleString("vi-VN") + "đ" : "Liên hệ";
   };
@@ -20,8 +23,16 @@ const TourCard = ({ tour }) => {
     return diffDays <= 7;
   };
 
+  // Xử lý click vào card hoặc button để xem chi tiết
+  const handleViewDetail = (e) => {
+    e.stopPropagation();
+    if (tour.id) {
+      navigate(`/tours/${tour.id}`);
+    }
+  };
+
   return (
-    <div className="tour-card">
+    <div className="tour-card" onClick={handleViewDetail}>
       <div className="tour-image-wrapper">
         <img
           src={tour.image || placeholderImage}
@@ -80,7 +91,7 @@ const TourCard = ({ tour }) => {
           <span className="tour-per-person">/ người</span>
         </div>
 
-        <button className="tour-btn-detail">
+        <button className="tour-btn-detail" onClick={handleViewDetail}>
           Xem chi tiết <span>→</span>
         </button>
       </div>
