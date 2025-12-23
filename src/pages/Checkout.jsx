@@ -24,7 +24,7 @@ const Checkout = () => {
   const vnp_TmnCode = import.meta.env.VITE_VNP_TMNCODE;
   const vnp_HashSecret = import.meta.env.VITE_VNP_HASHSECRET;
   const vnp_Url = "https://sandbox.vnpayment.vn/paymentv2/vpcpay.html";
-  const vnp_ReturnUrl = "https://ai-tour-booking.vercel.app/checkout/result";
+  const vnp_ReturnUrl = `${window.location.origin}/checkout/result`; // Dynamic based on current origin
 
   React.useEffect(() => {
     if (!bookingId || !tour || !totalPrice) {

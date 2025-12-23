@@ -17,6 +17,7 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
     price: "",
     location: "",
     duration_days: "",
+    duration_nights: "",
   });
 
   const [itineraryDays, setItineraryDays] = useState([
@@ -39,6 +40,7 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
         price: tour.price || "",
         location: tour.location || "",
         duration_days: tour.duration_days || "",
+        duration_nights: tour.duration_nights || "",
       });
 
       if (tour.image) {
@@ -261,6 +263,19 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
       return;
     }
 
+    // Validation cho duration_nights
+    const days = parseInt(formData.duration_days, 10);
+    const nights = parseInt(formData.duration_nights, 10);
+    if (!isNaN(days) && !isNaN(nights)) {
+      if (nights > days || nights < days - 1) {
+        toast.error(
+          "Số đêm phải bằng hoặc ít hơn số ngày đúng 1 (ví dụ: 5 ngày 4 đêm hoặc 5 ngày 5 đêm)!"
+        );
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
       const partnerName = user?.full_name?.trim() || "Partner";
       const tourName = formData.name.trim();
@@ -279,6 +294,9 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
             location: formData.location.trim() || null,
             duration_days: formData.duration_days
               ? parseInt(formData.duration_days, 10)
+              : null,
+            duration_nights: formData.duration_nights
+              ? parseInt(formData.duration_nights, 10)
               : null,
             itinerary: itineraryDays.map((d, idx) => ({
               day: idx + 1,
@@ -327,6 +345,9 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
           location: formData.location.trim() || null,
           duration_days: formData.duration_days
             ? parseInt(formData.duration_days, 10)
+            : null,
+          duration_nights: formData.duration_nights
+            ? parseInt(formData.duration_nights, 10)
             : null,
           itinerary: itineraryDays.map((d, idx) => ({
             day: idx + 1,
@@ -503,19 +524,30 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
           />
         </div>
 
-        <input
-          type="number"
-          name="duration_days"
-          value={formData.duration_days}
-          onChange={handleChange}
-          placeholder="Số ngày (VD: 3)"
-          min="1"
-          disabled={loading || uploading}
-        />
+        <div className="form-row">
+          <input
+            type="number"
+            name="duration_days"
+            value={formData.duration_days}
+            onChange={handleChange}
+            placeholder="Số ngày (VD: 5)"
+            min="1"
+            disabled={loading || uploading}
+          />
+          <input
+            type="number"
+            name="duration_nights"
+            value={formData.duration_nights}
+            onChange={handleChange}
+            placeholder="Số đêm (VD: 4)"
+            min="0"
+            disabled={loading || uploading}
+          />
+        </div>
 
         <div className="itinerary-section">
           <div className="itinerary-header">
-            <h3>Lịch trình chi tiết</h3>
+            <h3>Sự kiện & hoạt động trong ngày</h3>
             <button
               type="button"
               className="btn-add-day"
@@ -542,7 +574,7 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
                 )}
               </div>
               <textarea
-                placeholder={`Hoạt động ngày ${item.day}...`}
+                placeholder={`Sự kiện & hoạt động ngày ${item.day}...`}
                 value={item.activities}
                 onChange={(e) => handleDayChange(index, e.target.value)}
                 rows={4}
