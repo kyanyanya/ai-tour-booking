@@ -1,0 +1,104 @@
+/* src/styles/components/forms/CreateVoucherForm.css */
+.create-voucher-form {
+  background: white;
+  padding: 32px;
+  border-radius: 16px;
+  width: 520px;
+  max-width: 95vw;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
+  font-family: "Segoe UI", sans-serif;
+}
+
+.create-voucher-form h2 {
+  margin: 0 0 28px;
+  font-size: 1.6rem;
+  font-weight: 700;
+  text-align: center;
+  color: #1a1a1a;
+}
+
+.create-voucher-form input {
+  width: 100%;
+  padding: 13px 16px;
+  border: 1.8px solid #e0e0e0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  margin-bottom: 16px;
+  background: #fdfdff;
+  box-sizing: border-box;
+}
+
+.create-voucher-form input:focus {
+  outline: none;
+  border-color: #4361ee;
+  box-shadow: 0 0 0 4px rgba(67, 97, 238, 0.15);
+}
+
+.form-note {
+  background: #fefce8;
+  padding: 12px;
+  border-radius: 8px;
+  margin: 16px 0;
+  font-size: 0.9rem;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.form-actions {
+  display: flex;
+  gap: 16px;
+  margin-top: 32px;
+}
+
+.btn-primary,
+.btn-cancel {
+  flex: 1;
+  padding: 15px;
+  border: none;
+  border-radius: 12px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-primary {
+  background: #4361ee;
+  color: white;
+}
+
+.btn-primary:hover {
+  background: #3651d4;
+}
+
+.btn-cancel {
+  background: #f8f9fc;
+  color: #666;
+  border: 1.5px solid #ddd;
+}
+
+.btn-cancel:hover {
+  background: #e9ecef;
+}
+.create-voucher-form select {
+  width: 100%;
+  padding: 13px 16px;
+  border: 1.8px solid #e0e0e0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  background: #fdfdff;
+  margin-bottom: 16px;
+  transition: all 0.3s ease;
+}
+
+.create-voucher-form select:focus {
+  outline: none;
+  border-color: #4361ee;
+  box-shadow: 0 0 0 4px rgba(67, 97, 238, 0.15);
+}
+
+.create-voucher-form label {
+  font-weight: 600;
+  color: #333;
+  font-size: 1.05rem;
+}

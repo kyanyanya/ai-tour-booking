@@ -1,7 +1,8 @@
 // src/pages/CustomerDashboard.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
 import { Navigate, useNavigate } from "react-router-dom";
+import axios from "axios";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import "../styles/pages/CustomerDashboard.css";
@@ -10,6 +11,43 @@ const CustomerDashboard = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("overview");
+  const [rewardPoints, setRewardPoints] = useState(0);
+  const [loadingPoints, setLoadingPoints] = useState(true);
+
+  // Khai báo các biến env ở đây (ngoài useEffect) để ESLint không cảnh báo
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
+  const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const accessToken = localStorage.getItem("accessToken");
+
+  // Lấy điểm thưởng thực tế của user
+  useEffect(() => {
+    const fetchRewardPoints = async () => {
+      if (!user || !accessToken) return;
+
+      try {
+        const response = await axios.get(
+          `${SUPABASE_URL}/rest/v1/users?user_id=eq.${user.id}&select=reward_points`,
+          {
+            headers: {
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (response.data && response.data.length > 0) {
+          setRewardPoints(response.data[0].reward_points || 0);
+        }
+      } catch (err) {
+        console.error("Lỗi lấy điểm thưởng:", err);
+      } finally {
+        setLoadingPoints(false);
+      }
+    };
+
+    fetchRewardPoints();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user, accessToken]); // Không cần thêm SUPABASE_URL và SUPABASE_ANON_KEY nữa
 
   if (!user || user.role !== "customer") {
     return <Navigate to="/login" replace />;
@@ -25,7 +63,7 @@ const CustomerDashboard = () => {
           <div className="cd2-topbar-left">
             <h1 className="cd2-title">Bảng điều khiển khách hàng</h1>
             <p className="cd2-subtitle">
-              Theo dõi đặt tour, điểm thưởng, đánh giá và gợi ý AI cá nhân hóa
+              Theo dõi đặt tour, điểm thưởng, voucher và gợi ý AI cá nhân hóa
             </p>
           </div>
           <div className="cd2-topbar-right">
@@ -92,9 +130,11 @@ const CustomerDashboard = () => {
                 </div>
                 <div className="cd2-stat-card">
                   <div className="cd2-stat-icon points">Points</div>
-                  <div className="cd2-stat-value">2,450</div>
+                  <div className="cd2-stat-value">
+                    {loadingPoints ? "..." : rewardPoints.toLocaleString()}
+                  </div>
                   <div className="cd2-stat-label">Điểm tích lũy</div>
-                  <div className="cd2-stat-change up">+180</div>
+                  <div className="cd2-stat-change up">Mới nhận</div>
                 </div>
                 <div className="cd2-stat-card">
                   <div className="cd2-stat-icon vouchers">Voucher</div>
@@ -117,9 +157,10 @@ const CustomerDashboard = () => {
                 </div>
                 <p>
                   <strong>“Sapa 3N2Đ – Trekking & Homestay”</strong> phù hợp với
-                  bạn:
-                  <strong>94%</strong> tương thích. Dùng{" "}
-                  <strong>500 điểm</strong> → giảm <strong>250.000đ</strong>.
+                  bạn: <strong>94%</strong> tương thích.
+                  <br />
+                  Dùng <strong>500 điểm</strong> → giảm{" "}
+                  <strong>350.000đ</strong> (1 điểm = 700đ).
                 </p>
                 <button className="cd2-btn-apply">Xem chi tiết</button>
               </div>
@@ -188,36 +229,24 @@ const CustomerDashboard = () => {
               <h3>Chi tiết điểm thưởng</h3>
               <div className="cd2-points-summary">
                 <div className="cd2-points-total">
-                  <strong>2,450</strong> điểm
+                  <strong>{rewardPoints.toLocaleString()}</strong> điểm
                 </div>
-                <p>1 điểm = 1.000đ khi đổi voucher</p>
+                <p>
+                  1 điểm = 700đ khi trừ trực tiếp vào tour • Hoặc đổi voucher
+                  giảm giá
+                </p>
               </div>
-              <table className="cd2-table">
-                <thead>
-                  <tr>
-                    <th>Ngày</th>
-                    <th>Nội dung</th>
-                    <th>Điểm</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>15/11/2025</td>
-                    <td>Đặt tour Hạ Long</td>
-                    <td className="cd2-points-earned">+180</td>
-                  </tr>
-                  <tr>
-                    <td>10/11/2025</td>
-                    <td>Viết đánh giá</td>
-                    <td className="cd2-points-earned">+50</td>
-                  </tr>
-                  <tr>
-                    <td>05/11/2025</td>
-                    <td>Đổi voucher</td>
-                    <td className="cd2-points-spent">-300</td>
-                  </tr>
-                </tbody>
-              </table>
+              {/* Lịch sử điểm thưởng (có thể thêm sau) */}
+              <p
+                style={{
+                  textAlign: "center",
+                  color: "#666",
+                  marginTop: "40px",
+                }}
+              >
+                Lịch sử giao dịch điểm thưởng sẽ được cập nhật trong phiên bản
+                tiếp theo.
+              </p>
             </div>
           )}
 

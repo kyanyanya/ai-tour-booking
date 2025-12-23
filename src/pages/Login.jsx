@@ -50,7 +50,7 @@ const Login = () => {
         {
           headers: {
             apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${accessToken}`, // Gửi Access Token
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
           },
         }
@@ -78,15 +78,18 @@ const Login = () => {
 
       login(userData, accessToken, refresh_token);
 
+      // Thêm: Lưu userId vào localStorage để dùng ở các file khác (PaymentResult, v.v.)
+      localStorage.setItem("userId", user_id);
+
       // Thông báo thành công bằng toastify
       toast.success(
         `Chào mừng trở lại, ${fullName}! Đang chuyển hướng đến Trang chủ...`
       );
 
-      // CHUYỂN HƯỚNG MỚI: Luôn chuyển về Home (/) bất kể vai trò
+      // CHUYỂN HƯỚNG: Luôn về Home
       setTimeout(() => {
         navigate("/");
-      }, 1500); // Chờ 1.5 giây
+      }, 1500);
     } catch (err) {
       console.error(
         "Lỗi Đăng nhập:",
@@ -96,14 +99,14 @@ const Login = () => {
         err.response?.data?.error_description ||
         "Email hoặc Mật khẩu không chính xác.";
 
-      // Thông báo lỗi bằng toastify
       toast.error(errMsg);
-      setError(errMsg); // Cập nhật lỗi để hiển thị dưới form (nếu cần)
+      setError(errMsg);
     } finally {
       setLoading(false);
     }
   };
 
+  // Phần return giữ nguyên không thay đổi
   return (
     <>
       <Header />
