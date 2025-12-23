@@ -18,14 +18,15 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
     location: "",
     duration_days: "",
     duration_nights: "",
+    tour_code: "", // Mã tour do partner tự đặt
   });
 
   const [itineraryDays, setItineraryDays] = useState([
     { day: 1, activities: "" },
   ]);
 
-  const [compressedImage, setCompressedImage] = useState(null); // File dùng để upload (gốc hoặc đã nén)
-  const [imagePreview, setImagePreview] = useState(""); // URL preview ảnh
+  const [compressedImage, setCompressedImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState("");
   const [uploading, setUploading] = useState(false);
   const [loading, setLoading] = useState(false);
 
@@ -41,6 +42,7 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
         location: tour.location || "",
         duration_days: tour.duration_days || "",
         duration_nights: tour.duration_nights || "",
+        tour_code: tour.tour_code || "",
       });
 
       if (tour.image) {
@@ -62,7 +64,7 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
     }
   }, [tour]);
 
-  // Hàm nén ảnh (chỉ chạy khi ảnh > 5MB)
+  // Hàm nén ảnh
   const compressImage = (file) => {
     return new Promise((resolve) => {
       const reader = new FileReader();
@@ -86,7 +88,7 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
           ctx.drawImage(img, 0, 0, width, height);
 
           let quality = 0.8;
-          if (file.size > 8 * 1024 * 1024) quality = 0.6; // >8MB nén mạnh hơn
+          if (file.size > 8 * 1024 * 1024) quality = 0.6;
 
           canvas.toBlob(
             (blob) => {
@@ -106,7 +108,7 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
     });
   };
 
-  // Xử lý khi người dùng chọn ảnh
+  // Xử lý chọn ảnh
   const handleImageChange = async (e) => {
     const file = e.target.files[0];
     if (!file) return;
@@ -116,24 +118,21 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
       return;
     }
 
-    // Tạo preview từ file gốc
     setImagePreview(URL.createObjectURL(file));
 
-    // Nếu ảnh > 5MB → nén tự động
     if (file.size > 5 * 1024 * 1024) {
-      toast.info("Ảnh lớn hơn 5MB, đang nén tự động để upload nhanh hơn...");
+      toast.info("Ảnh lớn hơn 5MB, đang nén tự động...");
       const compressed = await compressImage(file);
       setCompressedImage(compressed);
       toast.success(
         `Đã nén ảnh xuống ${(compressed.size / 1024 / 1024).toFixed(2)} MB`
       );
     } else {
-      // Ảnh nhỏ → dùng luôn file gốc
       setCompressedImage(file);
     }
   };
 
-  // Upload ảnh bằng Axios (Supabase Storage REST API)
+  // Upload ảnh
   const uploadImageWithAxios = async (tourId) => {
     if (!compressedImage || !tourId) return null;
 
@@ -142,7 +141,6 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
       const fileExt = compressedImage.name.split(".").pop().toLowerCase();
       const fileName = `${tourId}.${fileExt}`;
 
-      // Upload file (không cần lấy data response vì Supabase trả về {} khi thành công)
       await axios.post(
         `${supabaseUrl}/storage/v1/object/tour_card_image/${fileName}`,
         compressedImage,
@@ -151,12 +149,11 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
             apikey: anonKey,
             Authorization: `Bearer ${session?.access_token}`,
             "Content-Type": compressedImage.type || "application/octet-stream",
-            "x-upsert": "true", // Ghi đè nếu đã tồn tại (khi chỉnh sửa)
+            "x-upsert": "true",
           },
         }
       );
 
-      // Trả về public URL
       return `${supabaseUrl}/storage/v1/object/public/tour_card_image/${fileName}`;
     } catch (err) {
       console.error("Lỗi upload ảnh:", err);
@@ -167,10 +164,10 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
     }
   };
 
-  // Lấy danh sách admin từ view
-  const getAdminIds = async () => {
+  // Gửi thông báo đến Admin
+  const notifyAllAdmins = async (message, type, tourId = null) => {
     try {
-      const { data } = await axios.get(
+      const { data: admins } = await axios.get(
         `${supabaseUrl}/rest/v1/admin_ids_view`,
         {
           headers: {
@@ -179,19 +176,9 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
           },
         }
       );
-      return data || [];
-    } catch (err) {
-      console.error("Lỗi lấy danh sách admin:", err);
-      return [];
-    }
-  };
 
-  // Gửi thông báo đến tất cả Admin
-  const notifyAllAdmins = async (message, type, tourId = null) => {
-    const admins = await getAdminIds();
-    if (admins.length === 0) return;
+      if (!admins || admins.length === 0) return;
 
-    try {
       for (const admin of admins) {
         await axios.post(
           `${supabaseUrl}/rest/v1/admin_notifications`,
@@ -241,7 +228,7 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
     setItineraryDays(itineraryDays.filter((_, i) => i !== index));
   };
 
-  // Xử lý submit form
+  // Submit form
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -257,20 +244,31 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
       setLoading(false);
       return;
     }
+
+    // Validation mã tour: chỉ cho phép chữ cái, số, khoảng trắng, -, _
+    if (formData.tour_code) {
+      const cleanCode = formData.tour_code.trim();
+      if (!/^[a-zA-Z0-9\s\-_]+$/.test(cleanCode)) {
+        toast.error(
+          "Mã tour chỉ được chứa chữ cái, số, khoảng trắng, gạch ngang (-) hoặc gạch dưới (_)"
+        );
+        setLoading(false);
+        return;
+      }
+    }
+
     if (itineraryDays.some((d) => !d.activities.trim())) {
       toast.error("Vui lòng nhập hoạt động cho tất cả các ngày!");
       setLoading(false);
       return;
     }
 
-    // Validation cho duration_nights
+    // Validation duration_nights
     const days = parseInt(formData.duration_days, 10);
     const nights = parseInt(formData.duration_nights, 10);
     if (!isNaN(days) && !isNaN(nights)) {
       if (nights > days || nights < days - 1) {
-        toast.error(
-          "Số đêm phải bằng hoặc ít hơn số ngày đúng 1 (ví dụ: 5 ngày 4 đêm hoặc 5 ngày 5 đêm)!"
-        );
+        toast.error("Số đêm phải bằng hoặc ít hơn số ngày đúng 1!");
         setLoading(false);
         return;
       }
@@ -281,29 +279,32 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
       const tourName = formData.name.trim();
       let currentTourId = tour?.id;
 
-      // Trường hợp: Tạo mới + có ảnh → tạo tour trước để lấy ID rồi upload ảnh
+      const basePayload = {
+        partner_id: user.id,
+        partner_name: partnerName,
+        name: tourName,
+        description: formData.description.trim() || null,
+        price: parseFloat(formData.price),
+        location: formData.location.trim() || null,
+        duration_days: formData.duration_days
+          ? parseInt(formData.duration_days, 10)
+          : null,
+        duration_nights: formData.duration_nights
+          ? parseInt(formData.duration_nights, 10)
+          : null,
+        tour_code: formData.tour_code.trim().toUpperCase() || null, // Chuyển thành chữ hoa khi lưu
+        itinerary: itineraryDays.map((d, idx) => ({
+          day: idx + 1,
+          activities: d.activities.trim(),
+        })),
+        status: "PENDING_APPROVAL",
+      };
+
       if (!tour && compressedImage) {
+        // Tạo mới + có ảnh
         const createRes = await axios.post(
           `${supabaseUrl}/rest/v1/tours`,
-          {
-            partner_id: user.id,
-            partner_name: partnerName,
-            name: tourName,
-            description: formData.description.trim() || null,
-            price: parseFloat(formData.price),
-            location: formData.location.trim() || null,
-            duration_days: formData.duration_days
-              ? parseInt(formData.duration_days, 10)
-              : null,
-            duration_nights: formData.duration_nights
-              ? parseInt(formData.duration_nights, 10)
-              : null,
-            itinerary: itineraryDays.map((d, idx) => ({
-              day: idx + 1,
-              activities: d.activities.trim(),
-            })),
-            status: "PENDING_APPROVAL",
-          },
+          basePayload,
           {
             headers: {
               apikey: anonKey,
@@ -331,30 +332,15 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
         }
 
         await notifyAllAdmins(
-          `Partner "${partnerName}" vừa tạo tour mới và đang chờ duyệt: "${tourName}"`,
+          `Partner "${partnerName}" vừa tạo tour mới (Mã: ${
+            formData.tour_code || "Không có"
+          }) và đang chờ duyệt: "${tourName}"`,
           "tour_created",
           currentTourId
         );
         toast.success("Tạo tour thành công!");
       } else {
-        // Chỉnh sửa tour hoặc tạo mới không có ảnh
-        const payload = {
-          name: tourName,
-          description: formData.description.trim() || null,
-          price: parseFloat(formData.price),
-          location: formData.location.trim() || null,
-          duration_days: formData.duration_days
-            ? parseInt(formData.duration_days, 10)
-            : null,
-          duration_nights: formData.duration_nights
-            ? parseInt(formData.duration_nights, 10)
-            : null,
-          itinerary: itineraryDays.map((d, idx) => ({
-            day: idx + 1,
-            activities: d.activities.trim(),
-          })),
-          status: "PENDING_APPROVAL",
-        };
+        let payload = { ...basePayload };
 
         if (compressedImage) {
           const imageUrl = await uploadImageWithAxios(
@@ -364,6 +350,7 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
         }
 
         if (tour) {
+          // Cập nhật tour
           await axios.patch(
             `${supabaseUrl}/rest/v1/tours?id=eq.${tour.id}`,
             payload,
@@ -377,20 +364,18 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
           );
 
           await notifyAllAdmins(
-            `Partner "${partnerName}" đã cập nhật tour "${tourName}" và đang chờ duyệt lại.`,
+            `Partner "${partnerName}" đã cập nhật tour (Mã: ${
+              formData.tour_code || tour.tour_code || "Không có"
+            }): "${tourName}"`,
             "tour_updated",
             tour.id
           );
           toast.success("Cập nhật tour thành công!");
         } else {
-          // Tạo mới không có ảnh
+          // Tạo mới không ảnh
           const createRes = await axios.post(
             `${supabaseUrl}/rest/v1/tours`,
-            {
-              partner_id: user.id,
-              partner_name: partnerName,
-              ...payload,
-            },
+            payload,
             {
               headers: {
                 apikey: anonKey,
@@ -402,7 +387,9 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
           );
 
           await notifyAllAdmins(
-            `Partner "${partnerName}" vừa tạo tour mới và đang chờ duyệt: "${tourName}"`,
+            `Partner "${partnerName}" vừa tạo tour mới (Mã: ${
+              formData.tour_code || "Không có"
+            }) và đang chờ duyệt: "${tourName}"`,
             "tour_created",
             createRes.data[0].id
           );
@@ -414,7 +401,11 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
       onClose();
     } catch (err) {
       console.error("Lỗi lưu tour:", err);
-      toast.error(err.response?.data?.message || "Không thể lưu tour!");
+      if (err.response?.data?.message?.includes("unique")) {
+        toast.error("Mã tour đã tồn tại! Vui lòng chọn mã khác.");
+      } else {
+        toast.error(err.response?.data?.message || "Không thể lưu tour!");
+      }
     } finally {
       setLoading(false);
     }
@@ -441,7 +432,7 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
         )}
       </div>
 
-      {/* === PHẦN UPLOAD ẢNH === */}
+      {/* === UPLOAD ẢNH === */}
       <div className="image-upload-section">
         <label>Ảnh đại diện tour (khuyến khích)</label>
         <div
@@ -484,6 +475,26 @@ const CreateTourForm = ({ onClose, onSuccess, tour }) => {
       </div>
 
       <form onSubmit={handleSubmit}>
+        {/* MÃ TOUR - CHO PHÉP TỰ DO ĐẶT (CHỈ CẤM KÝ TỰ ĐẶC BIỆT) */}
+        <input
+          type="text"
+          name="tour_code"
+          value={formData.tour_code}
+          onChange={handleChange}
+          placeholder="Mã tour (VD: Sapa 2025, HN-DL-01) - tùy chọn"
+          disabled={loading || uploading}
+        />
+        <p
+          style={{
+            fontSize: "0.85rem",
+            color: "#666",
+            margin: "-8px 0 16px 0",
+          }}
+        >
+          Bạn có thể đặt mã tùy ý (chữ, số, khoảng trắng, -, _). Không dùng ký
+          tự đặc biệt như @, #, $, %, ...
+        </p>
+
         <input
           type="text"
           name="name"

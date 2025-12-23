@@ -455,6 +455,17 @@
   box-shadow: 0 4px 12px rgba(67, 97, 238, 0.3);
 }
 
+/* Ưu đãi - Điểm thưởng & Voucher */
+.price-breakdown .discount {
+  color: #dc2626;
+  font-weight: 600;
+}
+
+.price-total {
+  font-size: 1.2rem !important;
+  color: #1e293b;
+}
+
 /* Responsive */
 @media (max-width: 992px) {
   .checkout-main {

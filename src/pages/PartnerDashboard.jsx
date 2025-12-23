@@ -5,6 +5,7 @@ import { Navigate } from "react-router-dom";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import CreateTourForm from "../components/forms/CreateTourForm";
+import CreateVoucherForm from "../components/forms/CreateVoucherForm";
 import ConfirmModal from "../components/modals/ConfirmModal.jsx";
 import axios from "axios";
 import { toast } from "react-toastify";
@@ -14,15 +15,21 @@ const PartnerDashboard = () => {
   const { user, session } = useAuth();
   const [activeTab, setActiveTab] = useState("tours");
   const [tours, setTours] = useState([]);
+  const [vouchers, setVouchers] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [loadingTours, setLoadingTours] = useState(false);
+  const [loadingVouchers, setLoadingVouchers] = useState(false);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
 
-  // Form tạo/sửa tour
-  const [isFormOpen, setIsFormOpen] = useState(false);
+  // Form tour
+  const [isTourFormOpen, setIsTourFormOpen] = useState(false);
   const [editingTour, setEditingTour] = useState(null);
 
-  // Modal tạm dừng/kích hoạt
+  // Form voucher
+  const [isVoucherFormOpen, setIsVoucherFormOpen] = useState(false);
+  const [editingVoucher, setEditingVoucher] = useState(null);
+
+  // Modal tour
   const [toggleStatusModal, setToggleStatusModal] = useState({
     isOpen: false,
     tourId: null,
@@ -30,11 +37,17 @@ const PartnerDashboard = () => {
     currentStatus: "",
   });
 
-  // Modal xóa tour (chỉ cho REJECTED)
   const [deleteTourModal, setDeleteTourModal] = useState({
     isOpen: false,
     tourId: null,
     tourName: "",
+  });
+
+  // Modal voucher
+  const [deleteVoucherModal, setDeleteVoucherModal] = useState({
+    isOpen: false,
+    voucherId: null,
+    voucherCode: "",
   });
 
   // Modal thông báo
@@ -48,11 +61,10 @@ const PartnerDashboard = () => {
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
-  // Placeholder ảnh đẹp khi chưa có hoặc lỗi load
   const placeholderImage =
     "https://images.unsplash.com/photo-1501785888041-af3ef285b470?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80";
 
-  // Gửi thông báo đến tất cả Admin
+  // Gửi thông báo admin (chỉ dùng cho tour)
   const notifyAllAdmins = async (message, type, tourId = null) => {
     if (!session?.access_token) return;
 
@@ -95,6 +107,7 @@ const PartnerDashboard = () => {
     }
   };
 
+  // Fetch tours
   const fetchTours = useCallback(async () => {
     if (!user?.id || !session?.access_token) return;
     setLoadingTours(true);
@@ -117,6 +130,30 @@ const PartnerDashboard = () => {
     }
   }, [user?.id, session?.access_token, supabaseUrl, anonKey]);
 
+  // Fetch vouchers (với thông tin tour nếu có)
+  const fetchVouchers = useCallback(async () => {
+    if (!user?.id || !session?.access_token) return;
+    setLoadingVouchers(true);
+    try {
+      const { data } = await axios.get(
+        `${supabaseUrl}/rest/v1/vouchers?owner_id=eq.${user.id}&select=*,tours(name,tour_code)&order=created_at.desc`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      setVouchers(data || []);
+    } catch (_err) {
+      console.error("Lỗi tải voucher:", _err);
+      toast.error("Lỗi khi tải danh sách voucher!");
+    } finally {
+      setLoadingVouchers(false);
+    }
+  }, [user?.id, session?.access_token, supabaseUrl, anonKey]);
+
+  // Fetch notifications
   const fetchNotifications = useCallback(async () => {
     if (!user?.id || !session?.access_token) return;
     setLoadingNotifs(true);
@@ -139,26 +176,57 @@ const PartnerDashboard = () => {
     }
   }, [user?.id, session?.access_token, supabaseUrl, anonKey]);
 
-  // Mở form sửa tour
+  // Load data theo tab
+  useEffect(() => {
+    if (activeTab === "tours") fetchTours();
+    if (activeTab === "vouchers") fetchVouchers();
+    if (activeTab === "notifications") fetchNotifications();
+  }, [activeTab, fetchTours, fetchVouchers, fetchNotifications]);
+
+  // Tour handlers
   const openEditTour = (tour) => {
     setEditingTour(tour);
-    setIsFormOpen(true);
+    setIsTourFormOpen(true);
   };
 
-  // Đóng form
-  const closeForm = () => {
-    setIsFormOpen(false);
+  const closeTourForm = () => {
+    setIsTourFormOpen(false);
     setEditingTour(null);
   };
 
-  // Sau khi tạo/sửa thành công
   const handleTourSuccess = () => {
     fetchTours();
-    closeForm();
+    closeTourForm();
     toast.success(
       editingTour
         ? "Cập nhật tour thành công! Đã gửi yêu cầu duyệt lại đến Admin."
         : "Tạo tour thành công! Đang chờ duyệt."
+    );
+  };
+
+  // Voucher handlers
+  const openCreateVoucher = () => {
+    setEditingVoucher(null);
+    setIsVoucherFormOpen(true);
+  };
+
+  const openEditVoucher = (voucher) => {
+    setEditingVoucher(voucher);
+    setIsVoucherFormOpen(true);
+  };
+
+  const closeVoucherForm = () => {
+    setIsVoucherFormOpen(false);
+    setEditingVoucher(null);
+  };
+
+  const handleVoucherSuccess = () => {
+    fetchVouchers();
+    closeVoucherForm();
+    toast.success(
+      editingVoucher
+        ? "Cập nhật voucher thành công!"
+        : "Tạo voucher thành công!"
     );
   };
 
@@ -202,16 +270,11 @@ const PartnerDashboard = () => {
     } catch {
       toast.error("Không thể thay đổi trạng thái tour!");
     } finally {
-      setToggleStatusModal({
-        isOpen: false,
-        tourId: null,
-        tourName: "",
-        currentStatus: "",
-      });
+      setToggleStatusModal({ isOpen: false });
     }
   };
 
-  // XÓA TOUR TRỰC TIẾP (chỉ khi REJECTED)
+  // Xóa tour
   const openDeleteTourModal = (tour) => {
     setDeleteTourModal({
       isOpen: true,
@@ -234,7 +297,34 @@ const PartnerDashboard = () => {
     } catch {
       toast.error("Không thể xóa tour!");
     } finally {
-      setDeleteTourModal({ isOpen: false, tourId: null, tourName: "" });
+      setDeleteTourModal({ isOpen: false });
+    }
+  };
+
+  // Xóa voucher
+  const openDeleteVoucherModal = (voucher) => {
+    setDeleteVoucherModal({
+      isOpen: true,
+      voucherId: voucher.id,
+      voucherCode: voucher.code,
+    });
+  };
+
+  const confirmDeleteVoucher = async () => {
+    const { voucherId, voucherCode } = deleteVoucherModal;
+    try {
+      await axios.delete(`${supabaseUrl}/rest/v1/vouchers?id=eq.${voucherId}`, {
+        headers: {
+          apikey: anonKey,
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      toast.success(`Đã xóa voucher "${voucherCode}" thành công!`);
+      fetchVouchers();
+    } catch {
+      toast.error("Không thể xóa voucher!");
+    } finally {
+      setDeleteVoucherModal({ isOpen: false });
     }
   };
 
@@ -315,6 +405,7 @@ const PartnerDashboard = () => {
 
   const openDeleteNotifModal = (notifId) =>
     setDeleteNotifModal({ isOpen: true, notifId });
+
   const confirmDeleteNotification = async () => {
     try {
       await axios.delete(
@@ -335,23 +426,21 @@ const PartnerDashboard = () => {
     }
   };
 
-  useEffect(() => {
-    if (activeTab === "tours") fetchTours();
-    if (activeTab === "notifications") fetchNotifications();
-  }, [activeTab, fetchTours, fetchNotifications]);
-
   if (!user || user.role !== "partner") return <Navigate to="/login" replace />;
 
   const formatPrice = (price) =>
-    price ? price.toLocaleString("vi-VN") + "đ" : "-";
+    price ? Number(price).toLocaleString("vi-VN") + "đ" : "-";
+
   const formatDate = (date) =>
-    new Date(date).toLocaleDateString("vi-VN", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
+    date
+      ? new Date(date).toLocaleDateString("vi-VN", {
+          day: "2-digit",
+          month: "2-digit",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit",
+        })
+      : "-";
 
   const getStatusText = (status) => {
     switch (status) {
@@ -391,8 +480,12 @@ const PartnerDashboard = () => {
         return "Tour bị từ chối";
       case "tour_deleted":
         return "Tour đã bị xóa";
+      case "tour_paused":
+        return "Tour bị tạm dừng";
+      case "tour_reactivated":
+        return "Tour được kích hoạt lại";
       default:
-        return "Thông báo";
+        return "Thông báo hệ thống";
     }
   };
 
@@ -405,15 +498,22 @@ const PartnerDashboard = () => {
         <div className="pd-topbar">
           <div className="pd-topbar-left">
             <h1 className="pd-title">Bảng điều khiển Đối tác</h1>
-            <p className="pd-subtitle">Quản lý tours và thông báo</p>
+            <p className="pd-subtitle">Quản lý tours, voucher và thông báo</p>
           </div>
           <div className="pd-topbar-right">
-            <button
-              className="pd-btn-create"
-              onClick={() => setIsFormOpen(true)}
-            >
-              + Tạo tour mới
-            </button>
+            {activeTab === "tours" && (
+              <button
+                className="pd-btn-create"
+                onClick={() => setIsTourFormOpen(true)}
+              >
+                + Tạo tour mới
+              </button>
+            )}
+            {activeTab === "vouchers" && (
+              <button className="pd-btn-create" onClick={openCreateVoucher}>
+                + Tạo voucher mới
+              </button>
+            )}
           </div>
         </div>
 
@@ -421,6 +521,7 @@ const PartnerDashboard = () => {
           {[
             { id: "overview", label: "Tổng quan" },
             { id: "tours", label: "Tour của bạn" },
+            { id: "vouchers", label: "Voucher" },
             {
               id: "notifications",
               label: `Thông báo${unreadCount > 0 ? ` (${unreadCount})` : ""}`,
@@ -442,16 +543,11 @@ const PartnerDashboard = () => {
         </div>
 
         <div className="pd-content">
+          {/* TAB TOUR */}
           {activeTab === "tours" && (
             <div className="pd-table-wrapper">
               <div className="pd-table-header">
                 <h3>Danh sách Tour của bạn ({tours.length})</h3>
-                <button
-                  className="pd-btn-create"
-                  onClick={() => setIsFormOpen(true)}
-                >
-                  + Thêm tour mới
-                </button>
               </div>
 
               {loadingTours ? (
@@ -474,6 +570,7 @@ const PartnerDashboard = () => {
                   <thead>
                     <tr>
                       <th style={{ width: "100px" }}>Ảnh</th>
+                      <th>Mã Tour</th>
                       <th>Tên Tour</th>
                       <th>Địa điểm</th>
                       <th>Giá</th>
@@ -492,10 +589,13 @@ const PartnerDashboard = () => {
                             alt={tour.name}
                             className="pd-tour-thumbnail"
                             loading="lazy"
-                            onError={(e) => {
-                              e.currentTarget.src = placeholderImage;
-                            }}
+                            onError={(e) =>
+                              (e.currentTarget.src = placeholderImage)
+                            }
                           />
+                        </td>
+                        <td>
+                          <strong>{tour.tour_code || "-"}</strong>
                         </td>
                         <td className="pd-tour-name">{tour.name}</td>
                         <td>{tour.location || "-"}</td>
@@ -518,7 +618,6 @@ const PartnerDashboard = () => {
                           >
                             Sửa
                           </button>
-
                           {(tour.status === "APPROVED" ||
                             tour.status === "PAUSED") && (
                             <button
@@ -532,7 +631,6 @@ const PartnerDashboard = () => {
                                 : "Kích hoạt"}
                             </button>
                           )}
-
                           {tour.status === "REJECTED" && (
                             <button
                               className="pd-btn delete"
@@ -550,7 +648,95 @@ const PartnerDashboard = () => {
             </div>
           )}
 
-          {/* Các tab khác giữ nguyên */}
+          {/* TAB VOUCHER – ĐÃ CẬP NHẬT ĐẦY ĐỦ THÔNG TIN MỚI */}
+          {activeTab === "vouchers" && (
+            <div className="pd-table-wrapper">
+              <div className="pd-table-header">
+                <h3>Danh sách Voucher ({vouchers.length})</h3>
+              </div>
+
+              {loadingVouchers ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải voucher...
+                </div>
+              ) : vouchers.length === 0 ? (
+                <div className="pd-no-data">
+                  <p>Chưa có voucher nào.</p>
+                  <p>Nhấn "Tạo voucher mới" để bắt đầu!</p>
+                </div>
+              ) : (
+                <table className="pd-tours-table">
+                  <thead>
+                    <tr>
+                      <th>Mã Voucher</th>
+                      <th>Giảm giá</th>
+                      <th>Áp dụng cho</th>
+                      <th>Bắt đầu</th>
+                      <th>Kết thúc</th>
+                      <th>Số lượng</th>
+                      <th>Đã dùng</th>
+                      <th>Ngày tạo</th>
+                      <th>Hành động</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {vouchers.map((voucher) => {
+                      const tourName = voucher.tours?.name || null;
+                      const tourCode = voucher.tours?.tour_code || null;
+                      const maxUses = voucher.max_uses || "Không giới hạn";
+                      const currentUses = voucher.current_uses || 0;
+                      const usesText = voucher.max_uses
+                        ? `${currentUses}/${voucher.max_uses}`
+                        : `${currentUses} (không giới hạn)`;
+
+                      return (
+                        <tr key={voucher.id}>
+                          <td>
+                            <strong>{voucher.code}</strong>
+                          </td>
+                          <td>{formatPrice(voucher.discount_amount)}</td>
+                          <td>
+                            {voucher.tour_id
+                              ? tourCode
+                                ? `[${tourCode}] ${tourName}`
+                                : tourName || "Tour cụ thể"
+                              : "Tất cả tour"}
+                          </td>
+                          <td>{formatDate(voucher.start_date)}</td>
+                          <td>{formatDate(voucher.expires_at)}</td>
+                          <td>{maxUses}</td>
+                          <td>{usesText}</td>
+                          <td>{formatDate(voucher.created_at)}</td>
+                          <td className="pd-actions">
+                            <button
+                              className="pd-btn edit"
+                              onClick={() => openEditVoucher(voucher)}
+                            >
+                              Sửa
+                            </button>
+                            <button
+                              className="pd-btn delete"
+                              onClick={() => openDeleteVoucherModal(voucher)}
+                            >
+                              Xóa
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* TAB NOTIFICATIONS & OTHERS */}
           {activeTab === "notifications" && (
             <div className="pd-table-wrapper">
               <div className="pd-table-header">
@@ -631,7 +817,7 @@ const PartnerDashboard = () => {
             </div>
           )}
 
-          {/* Placeholder cho các tab khác */}
+          {/* Các tab placeholder */}
           {[
             "overview",
             "orders",
@@ -663,19 +849,34 @@ const PartnerDashboard = () => {
         </div>
       </div>
 
-      {/* Các modal giữ nguyên */}
-      {isFormOpen && (
-        <div className="modal-backdrop" onClick={closeForm}>
+      {/* Form Tour */}
+      {isTourFormOpen && (
+        <div className="modal-backdrop" onClick={closeTourForm}>
           <div onClick={(e) => e.stopPropagation()}>
             <CreateTourForm
               tour={editingTour}
-              onClose={closeForm}
+              onClose={closeTourForm}
               onSuccess={handleTourSuccess}
             />
           </div>
         </div>
       )}
 
+      {/* Form Voucher */}
+      {isVoucherFormOpen && (
+        <div className="modal-backdrop" onClick={closeVoucherForm}>
+          <div onClick={(e) => e.stopPropagation()}>
+            <CreateVoucherForm
+              voucher={editingVoucher}
+              partnerId={user.id}
+              onClose={closeVoucherForm}
+              onSuccess={handleVoucherSuccess}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Các modal */}
       <ConfirmModal
         isOpen={toggleStatusModal.isOpen}
         title="Xác nhận thay đổi trạng thái"
@@ -685,14 +886,7 @@ const PartnerDashboard = () => {
             : "KÍCH HOẠT LẠI"
         } tour "${toggleStatusModal.tourName}"?`}
         onConfirm={confirmToggleStatus}
-        onCancel={() =>
-          setToggleStatusModal({
-            isOpen: false,
-            tourId: null,
-            tourName: "",
-            currentStatus: "",
-          })
-        }
+        onCancel={() => setToggleStatusModal({ isOpen: false })}
       />
 
       <ConfirmModal
@@ -700,9 +894,15 @@ const PartnerDashboard = () => {
         title="Xóa tour"
         message={`Bạn có chắc chắn muốn XÓA tour "${deleteTourModal.tourName}"? Hành động này không thể hoàn tác.`}
         onConfirm={confirmDeleteTour}
-        onCancel={() =>
-          setDeleteTourModal({ isOpen: false, tourId: null, tourName: "" })
-        }
+        onCancel={() => setDeleteTourModal({ isOpen: false })}
+      />
+
+      <ConfirmModal
+        isOpen={deleteVoucherModal.isOpen}
+        title="Xóa voucher"
+        message={`Bạn có chắc muốn xóa voucher "${deleteVoucherModal.voucherCode}"?`}
+        onConfirm={confirmDeleteVoucher}
+        onCancel={() => setDeleteVoucherModal({ isOpen: false })}
       />
 
       <ConfirmModal
@@ -710,7 +910,7 @@ const PartnerDashboard = () => {
         title="Xóa thông báo"
         message="Bạn có chắc muốn xóa thông báo này?"
         onConfirm={confirmDeleteNotification}
-        onCancel={() => setDeleteNotifModal({ isOpen: false, notifId: null })}
+        onCancel={() => setDeleteNotifModal({ isOpen: false })}
       />
 
       <ConfirmModal
