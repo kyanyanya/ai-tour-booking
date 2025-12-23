@@ -31,6 +31,16 @@ const TourCard = ({ tour }) => {
     }
   };
 
+  // Hiển thị duration
+  const formatDuration = () => {
+    if (tour.duration_days && tour.duration_nights) {
+      return `${tour.duration_days} ngày ${tour.duration_nights} đêm`;
+    } else if (tour.duration_days) {
+      return `${tour.duration_days} ngày`;
+    }
+    return "Liên hệ";
+  };
+
   return (
     <div className="tour-card" onClick={handleViewDetail}>
       <div className="tour-image-wrapper">
@@ -83,7 +93,7 @@ const TourCard = ({ tour }) => {
               fill="none"
             />
           </svg>
-          {tour.duration_days ? `${tour.duration_days} ngày` : "Liên hệ"}
+          {formatDuration()}
         </p>
 
         <div className="tour-price-wrapper">
