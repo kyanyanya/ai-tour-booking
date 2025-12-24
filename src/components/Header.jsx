@@ -2,7 +2,7 @@
 import React from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/AuthContext.jsx";
-import { toast } from "react-toastify"; // <-- Import toastify
+import { toast } from "react-toastify";
 import "../styles/components/Header.css";
 
 const Header = () => {
@@ -10,21 +10,19 @@ const Header = () => {
   const navigate = useNavigate();
 
   const handleLogout = () => {
-    logout(); // Gọi hàm logout trong AuthContext (xóa token và user state)
+    logout(); // Xóa token và user state trong AuthContext
 
-    // ⚠️ Thêm thông báo Đăng xuất thành công
     toast.success("Bạn đã đăng xuất thành công! Hẹn gặp lại.");
 
-    navigate("/"); // Chuyển hướng về trang chủ
+    navigate("/"); // Quay về trang chủ
   };
 
   const getDashboardPath = () => {
     if (!user) return null;
-    // Chuyển hướng tới /admin, /partner, hoặc /customer dựa trên role
-    return `/${user.role}`;
+    return `/${user.role}`; // /admin, /partner, hoặc /customer
   };
 
-  // Lấy tên đầy đủ để chào mừng (ưu tiên full_name, nếu không có dùng phần trước @ của email)
+  // Hiển thị tên người dùng (full_name hoặc phần trước @ của email)
   const userName = user?.full_name || user?.email?.split("@")[0] || "Khách";
 
   return (
@@ -45,6 +43,9 @@ const Header = () => {
           </Link>
           <Link to="/tours" className="hd-nav-link">
             Tours
+          </Link>
+          <Link to="/vouchers" className="hd-nav-link">
+            Vouchers
           </Link>
           {user && (
             <Link to={getDashboardPath()} className="hd-nav-link">
@@ -79,7 +80,6 @@ const Header = () => {
         <div className="hd-actions">
           {user ? (
             <>
-              {/* Cập nhật hiển thị tên */}
               <span className="hd-username">Xin chào, {userName}</span>
               <button onClick={handleLogout} className="hd-btn-logout">
                 Đăng xuất

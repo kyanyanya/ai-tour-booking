@@ -1,0 +1,145 @@
+/* src/styles/pages/VoucherPage.css */
+.voucher-page-container {
+  min-height: 100vh;
+  background: #f8f9fc;
+  padding: 40px 20px;
+}
+
+.voucher-page-wrapper {
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.voucher-page-title {
+  text-align: center;
+  font-size: 2.5rem;
+  font-weight: 700;
+  color: #1a1a1a;
+  margin-bottom: 12px;
+}
+
+.voucher-page-subtitle {
+  text-align: center;
+  font-size: 1.1rem;
+  color: #666;
+  margin-bottom: 48px;
+}
+
+.voucher-loading {
+  text-align: center;
+  padding: 80px;
+  font-size: 1.2rem;
+  color: #666;
+}
+
+.voucher-no-data {
+  text-align: center;
+  padding: 80px;
+  color: #888;
+}
+
+.voucher-no-data p:first-child {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #444;
+  margin-bottom: 12px;
+}
+
+.voucher-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 24px;
+}
+
+.voucher-card {
+  background: white;
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.voucher-card:hover {
+  transform: translateY(-8px);
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.15);
+}
+
+.voucher-header {
+  background: linear-gradient(135deg, #4361ee, #3f37c9);
+  color: white;
+  padding: 20px;
+  text-align: center;
+}
+
+.voucher-header h3 {
+  font-size: 1.6rem;
+  margin: 0 0 8px 0;
+  font-weight: 700;
+  letter-spacing: 2px;
+}
+
+.voucher-discount {
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.voucher-body {
+  padding: 24px;
+  color: #333;
+  line-height: 1.7;
+}
+
+.voucher-body p {
+  margin: 12px 0;
+}
+
+.voucher-body strong {
+  color: #1a1a1a;
+}
+
+.voucher-low-stock {
+  color: #e74c3c;
+  font-weight: 700;
+}
+
+.voucher-footer {
+  padding: 20px;
+  text-align: center;
+  background: #f8f9fc;
+}
+
+.voucher-claim-btn {
+  background: #10b981;
+  color: white;
+  border: none;
+  padding: 12px 32px;
+  border-radius: 30px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.voucher-claim-btn:hover {
+  background: #059669;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(16, 185, 129, 0.3);
+}
+
+.voucher-claim-btn:disabled {
+  background: #9ca3af;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .voucher-page-title {
+    font-size: 2rem;
+  }
+
+  .voucher-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -575,6 +575,7 @@ const PartnerDashboard = () => {
                       <th>Địa điểm</th>
                       <th>Giá</th>
                       <th>Số ngày</th>
+                      <th>Số đêm</th>
                       <th>Trạng thái</th>
                       <th>Ngày tạo</th>
                       <th>Hành động</th>
@@ -601,6 +602,7 @@ const PartnerDashboard = () => {
                         <td>{tour.location || "-"}</td>
                         <td>{formatPrice(tour.price)}</td>
                         <td>{tour.duration_days || "-"}</td>
+                        <td>{tour.duration_nights || "-"}</td>
                         <td>
                           <span
                             className={`pd-status ${getStatusClass(
