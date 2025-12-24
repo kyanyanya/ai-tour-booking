@@ -1,5 +1,5 @@
 // src/components/forms/CreateVoucherForm.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import axios from "axios";
 import { toast } from "react-toastify";
 import "../../styles/components/forms/CreateVoucherForm.css";
@@ -12,17 +12,20 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
   const [formData, setFormData] = useState({
     code: "",
     discount_amount: "",
-    tour_id: "", // "" = tất cả tour
-    start_date: "", // sẽ set mặc định là now khi tạo mới
+    tour_id: "",
+    start_date: "",
     expires_at: "",
-    max_uses: "",
+    total_issued: "",
   });
 
-  const [tours, setTours] = useState([]); // Danh sách tour của partner
+  const [tours, setTours] = useState([]);
   const [loadingTours, setLoadingTours] = useState(true);
   const [loading, setLoading] = useState(false);
 
-  // Load danh sách tour của partner để chọn
+  // ← CỜ GLOBAL ĐỂ NGĂN SUBMIT 2 LẦN TRÊN TOÀN APP
+  const submitLock = useRef(false);
+
+  // Load tour
   useEffect(() => {
     const fetchTours = async () => {
       if (!partnerId || !accessToken) return;
@@ -36,7 +39,6 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
             },
           }
         );
-        // Chỉ lấy tour APPROVED để tránh chọn tour chưa duyệt
         const approvedTours = data.filter((t) => t.status === "APPROVED");
         setTours(approvedTours || []);
       } catch (err) {
@@ -48,10 +50,9 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
     };
 
     fetchTours();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partnerId, accessToken]);
 
-  // Load dữ liệu voucher khi chỉnh sửa
+  // Load dữ liệu khi edit
   useEffect(() => {
     if (voucher) {
       setFormData({
@@ -60,10 +61,9 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
         tour_id: voucher.tour_id || "",
         start_date: voucher.start_date ? voucher.start_date.slice(0, 16) : "",
         expires_at: voucher.expires_at ? voucher.expires_at.slice(0, 16) : "",
-        max_uses: voucher.max_uses || "",
+        total_issued: voucher.total_issued || "",
       });
     } else {
-      // Khi tạo mới: mặc định start_date = now
       const now = new Date().toISOString().slice(0, 16);
       setFormData((prev) => ({ ...prev, start_date: now }));
     }
@@ -77,16 +77,23 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    // ← FIX TRIỆT ĐỂ: CHỈ CHO PHÉP SUBMIT 1 LẦN DUY NHẤT
+    if (submitLock.current) return;
+    submitLock.current = true;
+
     if (!formData.code.trim()) {
       toast.error("Vui lòng nhập mã voucher!");
+      submitLock.current = false;
       return;
     }
     if (!formData.discount_amount || formData.discount_amount <= 0) {
       toast.error("Vui lòng nhập số tiền giảm hợp lệ!");
+      submitLock.current = false;
       return;
     }
 
     setLoading(true);
+
     try {
       const payload = {
         code: formData.code.trim().toUpperCase(),
@@ -95,11 +102,13 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
         tour_id: formData.tour_id || null,
         start_date: formData.start_date || null,
         expires_at: formData.expires_at || null,
-        max_uses: formData.max_uses ? parseInt(formData.max_uses) : null,
+        total_issued: formData.total_issued
+          ? parseInt(formData.total_issued)
+          : null,
+        claimed_count: 0,
       };
 
       if (voucher) {
-        // Cập nhật
         await axios.patch(
           `${supabaseUrl}/rest/v1/vouchers?id=eq.${voucher.id}`,
           payload,
@@ -113,7 +122,6 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
         );
         toast.success("Cập nhật voucher thành công!");
       } else {
-        // Tạo mới
         await axios.post(`${supabaseUrl}/rest/v1/vouchers`, payload, {
           headers: {
             apikey: anonKey,
@@ -133,6 +141,7 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
       } else {
         toast.error(err.response?.data?.message || "Không thể lưu voucher!");
       }
+      submitLock.current = false; // Cho phép thử lại nếu lỗi
     } finally {
       setLoading(false);
     }
@@ -164,7 +173,6 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
           disabled={loading}
         />
 
-        {/* Chọn tour áp dụng */}
         <label
           style={{ display: "block", margin: "16px 0 8px", fontWeight: "600" }}
         >
@@ -199,7 +207,6 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
           )}
         </select>
 
-        {/* Ngày bắt đầu */}
         <label
           style={{ display: "block", margin: "16px 0 8px", fontWeight: "600" }}
         >
@@ -213,7 +220,6 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
           disabled={loading}
         />
 
-        {/* Ngày kết thúc */}
         <label
           style={{ display: "block", margin: "16px 0 8px", fontWeight: "600" }}
         >
@@ -227,21 +233,29 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
           disabled={loading}
         />
 
-        {/* Số lượng sử dụng */}
         <label
           style={{ display: "block", margin: "16px 0 8px", fontWeight: "600" }}
         >
-          Số lượng sử dụng tối đa (để trống = không giới hạn):
+          Số lượng phát ra (để trống = không giới hạn):
         </label>
         <input
           type="number"
-          name="max_uses"
-          value={formData.max_uses}
+          name="total_issued"
+          value={formData.total_issued}
           onChange={handleChange}
-          placeholder="VD: 50"
+          placeholder="VD: 50 (tổng số khách có thể nhận)"
           min="1"
           disabled={loading}
         />
+        <p
+          style={{
+            fontSize: "0.85rem",
+            color: "#666",
+            margin: "-8px 0 16px 0",
+          }}
+        >
+          Mỗi khách chỉ nhận được 1 lần. Khi đủ số lượng, voucher sẽ hết.
+        </p>
 
         <div className="form-actions">
           <button type="submit" className="btn-primary" disabled={loading}>

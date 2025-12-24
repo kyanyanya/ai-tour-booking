@@ -5,6 +5,7 @@ import { Navigate, useNavigate } from "react-router-dom";
 import axios from "axios";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
+import { toast } from "react-toastify";
 import "../styles/pages/CustomerDashboard.css";
 
 const CustomerDashboard = () => {
@@ -13,19 +14,20 @@ const CustomerDashboard = () => {
   const [activeTab, setActiveTab] = useState("overview");
   const [rewardPoints, setRewardPoints] = useState(0);
   const [loadingPoints, setLoadingPoints] = useState(true);
+  const [myVouchers, setMyVouchers] = useState([]);
+  const [loadingVouchers, setLoadingVouchers] = useState(false);
 
-  // Khai báo các biến env ở đây (ngoài useEffect) để ESLint không cảnh báo
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
   const accessToken = localStorage.getItem("accessToken");
 
-  // Lấy điểm thưởng thực tế của user
+  // Lấy điểm thưởng
   useEffect(() => {
     const fetchRewardPoints = async () => {
       if (!user || !accessToken) return;
 
       try {
-        const response = await axios.get(
+        const { data } = await axios.get(
           `${SUPABASE_URL}/rest/v1/users?user_id=eq.${user.id}&select=reward_points`,
           {
             headers: {
@@ -35,8 +37,8 @@ const CustomerDashboard = () => {
           }
         );
 
-        if (response.data && response.data.length > 0) {
-          setRewardPoints(response.data[0].reward_points || 0);
+        if (data && data.length > 0) {
+          setRewardPoints(data[0].reward_points || 0);
         }
       } catch (err) {
         console.error("Lỗi lấy điểm thưởng:", err);
@@ -47,11 +49,81 @@ const CustomerDashboard = () => {
 
     fetchRewardPoints();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, accessToken]); // Không cần thêm SUPABASE_URL và SUPABASE_ANON_KEY nữa
+  }, [user, accessToken]);
+
+  // Lấy voucher khi vào tab Voucher
+  useEffect(() => {
+    if (activeTab === "vouchers" && user && accessToken) {
+      const fetchMyVouchers = async () => {
+        setLoadingVouchers(true);
+        try {
+          // Bước 1: Lấy danh sách mã voucher từ users.voucher_codes
+          const { data: userData } = await axios.get(
+            `${SUPABASE_URL}/rest/v1/users?user_id=eq.${user.id}&select=voucher_codes`,
+            {
+              headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${accessToken}`,
+              },
+            }
+          );
+
+          const voucherCodes = userData[0]?.voucher_codes || [];
+
+          if (voucherCodes.length === 0) {
+            setMyVouchers([]);
+            setLoadingVouchers(false);
+            return;
+          }
+
+          // Bước 2: Lấy chi tiết voucher theo các mã
+          const codesQuery = voucherCodes
+            .map((code) => `code=eq.${code}`)
+            .join("&");
+          const { data: voucherData } = await axios.get(
+            `${SUPABASE_URL}/rest/v1/vouchers?${codesQuery}&select=*,tours(name,tour_code)&order=created_at.desc`,
+            {
+              headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${accessToken}`,
+              },
+            }
+          );
+
+          setMyVouchers(voucherData || []);
+        } catch (err) {
+          console.error("Lỗi lấy voucher của khách:", err);
+          toast.error("Không thể tải voucher của bạn.");
+          setMyVouchers([]);
+        } finally {
+          setLoadingVouchers(false);
+        }
+      };
+
+      fetchMyVouchers();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab, user, accessToken]);
 
   if (!user || user.role !== "customer") {
     return <Navigate to="/login" replace />;
   }
+
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat("vi-VN", {
+      style: "currency",
+      currency: "VND",
+    }).format(price);
+  };
+
+  const formatDate = (date) => {
+    if (!date) return "Không giới hạn";
+    return new Date(date).toLocaleDateString("vi-VN", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
 
   return (
     <>
@@ -138,7 +210,7 @@ const CustomerDashboard = () => {
                 </div>
                 <div className="cd2-stat-card">
                   <div className="cd2-stat-icon vouchers">Voucher</div>
-                  <div className="cd2-stat-value">5</div>
+                  <div className="cd2-stat-value">{myVouchers.length}</div>
                   <div className="cd2-stat-label">Voucher đang có</div>
                   <div className="cd2-stat-change">Mới</div>
                 </div>
@@ -236,7 +308,6 @@ const CustomerDashboard = () => {
                   giảm giá
                 </p>
               </div>
-              {/* Lịch sử điểm thưởng (có thể thêm sau) */}
               <p
                 style={{
                   textAlign: "center",
@@ -253,27 +324,67 @@ const CustomerDashboard = () => {
           {/* === VOUCHER === */}
           {activeTab === "vouchers" && (
             <div className="cd2-table-wrapper">
-              <h3>Voucher đang sở hữu</h3>
-              <div className="cd2-voucher-grid">
-                <div className="cd2-voucher-card">
-                  <div className="cd2-voucher-header">
-                    <span className="cd2-voucher-discount">-300.000đ</span>
-                  </div>
-                  <h4>SAPA2025</h4>
-                  <p>Áp dụng cho tour Sapa từ 2 người</p>
-                  <p className="cd2-voucher-expiry">Hết hạn: 31/12/2025</p>
-                  <button className="cd2-btn use">Dùng ngay</button>
+              <h3>Voucher đang sở hữu ({myVouchers.length})</h3>
+
+              {loadingVouchers ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải voucher...
                 </div>
-                <div className="cd2-voucher-card">
-                  <div className="cd2-voucher-header">
-                    <span className="cd2-voucher-discount">Miễn phí</span>
-                  </div>
-                  <h4>WELCOME100</h4>
-                  <p>Giảm 100.000đ cho đơn đầu tiên</p>
-                  <p className="cd2-voucher-expiry">Hết hạn: 30/11/2025</p>
-                  <button className="cd2-btn use">Dùng ngay</button>
+              ) : myVouchers.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#888",
+                  }}
+                >
+                  <p>Bạn chưa sở hữu voucher nào.</p>
+                  <p>
+                    Hãy truy cập <strong>/vouchers</strong> để nhận voucher miễn
+                    phí!
+                  </p>
                 </div>
-              </div>
+              ) : (
+                <div className="cd2-voucher-grid">
+                  {myVouchers.map((voucher) => (
+                    <div key={voucher.id} className="cd2-voucher-card">
+                      <div className="cd2-voucher-header">
+                        <span className="cd2-voucher-discount">
+                          -{formatPrice(voucher.discount_amount)}
+                        </span>
+                      </div>
+                      <h4>{voucher.code}</h4>
+                      <p>
+                        <strong>Áp dụng:</strong>{" "}
+                        {voucher.tour_id
+                          ? voucher.tours?.tour_code
+                            ? `[${voucher.tours.tour_code}] ${voucher.tours.name}`
+                            : voucher.tours?.name || "Tour cụ thể"
+                          : "Tất cả các tour"}
+                      </p>
+                      <p>
+                        <strong>Hết hạn:</strong>{" "}
+                        {formatDate(voucher.expires_at)}
+                      </p>
+                      <button
+                        className="cd2-btn use"
+                        onClick={() => {
+                          navigator.clipboard.writeText(voucher.code);
+                          toast.success(`Đã copy mã: ${voucher.code}`);
+                        }}
+                      >
+                        Copy mã
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
@@ -309,19 +420,23 @@ const CustomerDashboard = () => {
               <div className="cd2-profile-form">
                 <div className="cd2-input-group">
                   <label>Họ và tên</label>
-                  <input type="text" value={user.name || "Nguyễn Văn A"} />
+                  <input type="text" defaultValue={user.full_name || ""} />
                 </div>
                 <div className="cd2-input-group">
                   <label>Email</label>
-                  <input type="email" value={user.email || "a@gmail.com"} />
+                  <input
+                    type="email"
+                    defaultValue={user.email || ""}
+                    readOnly
+                  />
                 </div>
                 <div className="cd2-input-group">
                   <label>Số điện thoại</label>
-                  <input type="tel" value="0901234567" />
+                  <input type="tel" placeholder="Chưa cập nhật" />
                 </div>
                 <div className="cd2-input-group">
                   <label>Địa chỉ</label>
-                  <input type="text" placeholder="Hà Nội, Việt Nam" />
+                  <input type="text" placeholder="Chưa cập nhật" />
                 </div>
                 <button className="cd2-btn save">Lưu thay đổi</button>
               </div>
