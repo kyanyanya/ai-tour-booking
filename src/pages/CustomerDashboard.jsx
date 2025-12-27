@@ -20,15 +20,16 @@ const CustomerDashboard = () => {
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
   const accessToken = localStorage.getItem("accessToken");
+  const userId = user?.id;
 
   // Lấy điểm thưởng
   useEffect(() => {
     const fetchRewardPoints = async () => {
-      if (!user || !accessToken) return;
+      if (!user || !accessToken || !userId) return;
 
       try {
         const { data } = await axios.get(
-          `${SUPABASE_URL}/rest/v1/users?user_id=eq.${user.id}&select=reward_points`,
+          `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}&select=reward_points`,
           {
             headers: {
               apikey: SUPABASE_ANON_KEY,
@@ -49,17 +50,17 @@ const CustomerDashboard = () => {
 
     fetchRewardPoints();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, accessToken]);
+  }, [user, userId, accessToken]);
 
-  // Lấy voucher khi vào tab Voucher
+  // Lấy voucher của người dùng khi vào tab Voucher
   useEffect(() => {
-    if (activeTab === "vouchers" && user && accessToken) {
+    if (activeTab === "vouchers" && user && accessToken && userId) {
       const fetchMyVouchers = async () => {
         setLoadingVouchers(true);
         try {
-          // Bước 1: Lấy danh sách mã voucher từ users.voucher_codes
-          const { data: userData } = await axios.get(
-            `${SUPABASE_URL}/rest/v1/users?user_id=eq.${user.id}&select=voucher_codes`,
+          // Query voucher mà user nằm trong mảng claimed_by
+          const { data } = await axios.get(
+            `${SUPABASE_URL}/rest/v1/vouchers?claimed_by=cs.{${userId}}&select=*,tours(name,tour_code)&order=created_at.desc`,
             {
               headers: {
                 apikey: SUPABASE_ANON_KEY,
@@ -68,29 +69,7 @@ const CustomerDashboard = () => {
             }
           );
 
-          const voucherCodes = userData[0]?.voucher_codes || [];
-
-          if (voucherCodes.length === 0) {
-            setMyVouchers([]);
-            setLoadingVouchers(false);
-            return;
-          }
-
-          // Bước 2: Lấy chi tiết voucher theo các mã
-          const codesQuery = voucherCodes
-            .map((code) => `code=eq.${code}`)
-            .join("&");
-          const { data: voucherData } = await axios.get(
-            `${SUPABASE_URL}/rest/v1/vouchers?${codesQuery}&select=*,tours(name,tour_code)&order=created_at.desc`,
-            {
-              headers: {
-                apikey: SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${accessToken}`,
-              },
-            }
-          );
-
-          setMyVouchers(voucherData || []);
+          setMyVouchers(data || []);
         } catch (err) {
           console.error("Lỗi lấy voucher của khách:", err);
           toast.error("Không thể tải voucher của bạn.");
@@ -101,9 +80,12 @@ const CustomerDashboard = () => {
       };
 
       fetchMyVouchers();
+    } else if (activeTab === "vouchers") {
+      setMyVouchers([]);
+      setLoadingVouchers(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, user, accessToken]);
+  }, [activeTab, user, userId, accessToken]);
 
   if (!user || user.role !== "customer") {
     return <Navigate to="/login" replace />;
@@ -347,7 +329,7 @@ const CustomerDashboard = () => {
                   <p>Bạn chưa sở hữu voucher nào.</p>
                   <p>
                     Hãy truy cập <strong>/vouchers</strong> để nhận voucher miễn
-                    phí!
+                    phí hoặc dùng điểm mua!
                   </p>
                 </div>
               ) : (

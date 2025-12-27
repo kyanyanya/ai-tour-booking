@@ -16,16 +16,15 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
     start_date: "",
     expires_at: "",
     total_issued: "",
+    point_cost: "0",
   });
 
   const [tours, setTours] = useState([]);
   const [loadingTours, setLoadingTours] = useState(true);
   const [loading, setLoading] = useState(false);
 
-  // ← CỜ GLOBAL ĐỂ NGĂN SUBMIT 2 LẦN TRÊN TOÀN APP
   const submitLock = useRef(false);
 
-  // Load tour
   useEffect(() => {
     const fetchTours = async () => {
       if (!partnerId || !accessToken) return;
@@ -50,9 +49,9 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
     };
 
     fetchTours();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [partnerId, accessToken]);
 
-  // Load dữ liệu khi edit
   useEffect(() => {
     if (voucher) {
       setFormData({
@@ -62,10 +61,11 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
         start_date: voucher.start_date ? voucher.start_date.slice(0, 16) : "",
         expires_at: voucher.expires_at ? voucher.expires_at.slice(0, 16) : "",
         total_issued: voucher.total_issued || "",
+        point_cost: voucher.point_cost ?? "0",
       });
     } else {
       const now = new Date().toISOString().slice(0, 16);
-      setFormData((prev) => ({ ...prev, start_date: now }));
+      setFormData((prev) => ({ ...prev, start_date: now, point_cost: "0" }));
     }
   }, [voucher]);
 
@@ -76,8 +76,6 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-
-    // ← FIX TRIỆT ĐỂ: CHỈ CHO PHÉP SUBMIT 1 LẦN DUY NHẤT
     if (submitLock.current) return;
     submitLock.current = true;
 
@@ -105,7 +103,9 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
         total_issued: formData.total_issued
           ? parseInt(formData.total_issued)
           : null,
-        claimed_count: 0,
+        point_cost: parseInt(formData.point_cost) || 0,
+        claimed_count: voucher?.claimed_count || 0,
+        claimed_by: voucher?.claimed_by || [],
       };
 
       if (voucher) {
@@ -141,7 +141,7 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
       } else {
         toast.error(err.response?.data?.message || "Không thể lưu voucher!");
       }
-      submitLock.current = false; // Cho phép thử lại nếu lỗi
+      submitLock.current = false;
     } finally {
       setLoading(false);
     }
@@ -151,130 +151,134 @@ const CreateVoucherForm = ({ voucher, partnerId, onClose, onSuccess }) => {
     <div className="create-voucher-form">
       <h2>{voucher ? "Chỉnh sửa Voucher" : "Tạo Voucher Mới"}</h2>
 
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          name="code"
-          value={formData.code}
-          onChange={handleChange}
-          placeholder="Mã voucher (VD: SAPA2025, WELCOME100)"
-          required
+      <div className="form-scroll-container">
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label>Mã voucher *</label>
+            <input
+              type="text"
+              name="code"
+              value={formData.code}
+              onChange={handleChange}
+              placeholder="VD: SAPA2025"
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Số tiền giảm (VND) *</label>
+            <input
+              type="number"
+              name="discount_amount"
+              value={formData.discount_amount}
+              onChange={handleChange}
+              placeholder="VD: 200000"
+              min="1000"
+              required
+              disabled={loading}
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Điểm cần để mua (0 = miễn phí)</label>
+            <input
+              type="number"
+              name="point_cost"
+              value={formData.point_cost}
+              onChange={handleChange}
+              placeholder="VD: 500 (để 0 nếu miễn phí)"
+              min="0"
+              disabled={loading}
+            />
+            <small> Nếu = 0 thì người dùng có thể nhận miễn phí.</small>
+          </div>
+
+          <div className="form-group">
+            <label>Áp dụng cho tour</label>
+            <select
+              name="tour_id"
+              value={formData.tour_id}
+              onChange={handleChange}
+              disabled={loading || loadingTours}
+            >
+              <option value="">Tất cả tour</option>
+              {loadingTours ? (
+                <option>Đang tải...</option>
+              ) : tours.length === 0 ? (
+                <option>Chưa có tour nào được duyệt</option>
+              ) : (
+                tours.map((tour) => (
+                  <option key={tour.id} value={tour.id}>
+                    {tour.tour_code ? `[${tour.tour_code}] ` : ""}
+                    {tour.name}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+
+          <div className="form-row">
+            <div className="form-group half">
+              <label>Ngày bắt đầu</label>
+              <input
+                type="datetime-local"
+                name="start_date"
+                value={formData.start_date}
+                onChange={handleChange}
+                disabled={loading}
+              />
+              <small>Mặc định: ngay lập tức</small>
+            </div>
+
+            <div className="form-group half">
+              <label>Ngày kết thúc</label>
+              <input
+                type="datetime-local"
+                name="expires_at"
+                value={formData.expires_at}
+                onChange={handleChange}
+                disabled={loading}
+              />
+              <small>Để trống = không giới hạn</small>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Số lượng phát ra</label>
+            <input
+              type="number"
+              name="total_issued"
+              value={formData.total_issued}
+              onChange={handleChange}
+              placeholder="VD: 50 (để trống = không giới hạn)"
+              min="1"
+              disabled={loading}
+            />
+            <small>Mỗi khách chỉ nhận/mua được 1 lần duy nhất</small>
+          </div>
+        </form>
+      </div>
+
+      {/* Nút hành động cố định ở dưới */}
+      <div className="form-actions-fixed">
+        <button
+          type="submit"
+          className="btn-primary"
           disabled={loading}
-        />
-
-        <input
-          type="number"
-          name="discount_amount"
-          value={formData.discount_amount}
-          onChange={handleChange}
-          placeholder="Số tiền giảm (VND)"
-          min="1000"
-          required
+          onClick={handleSubmit}
+        >
+          {loading ? "Đang lưu..." : voucher ? "Cập nhật" : "Tạo Voucher"}
+        </button>
+        <button
+          type="button"
+          className="btn-cancel"
+          onClick={onClose}
           disabled={loading}
-        />
-
-        <label
-          style={{ display: "block", margin: "16px 0 8px", fontWeight: "600" }}
         >
-          Áp dụng cho tour:
-        </label>
-        <select
-          name="tour_id"
-          value={formData.tour_id}
-          onChange={handleChange}
-          disabled={loading || loadingTours}
-          style={{
-            width: "100%",
-            padding: "12px 16px",
-            borderRadius: "12px",
-            border: "1.8px solid #e0e0e0",
-            fontSize: "0.95rem",
-            background: "#fdfdff",
-          }}
-        >
-          <option value="">Tất cả tour (mặc định)</option>
-          {loadingTours ? (
-            <option>Đang tải tour...</option>
-          ) : tours.length === 0 ? (
-            <option>Chưa có tour nào được duyệt</option>
-          ) : (
-            tours.map((tour) => (
-              <option key={tour.id} value={tour.id}>
-                {tour.tour_code ? `[${tour.tour_code}] ` : ""}
-                {tour.name}
-              </option>
-            ))
-          )}
-        </select>
-
-        <label
-          style={{ display: "block", margin: "16px 0 8px", fontWeight: "600" }}
-        >
-          Ngày bắt đầu (mặc định: ngay lập tức):
-        </label>
-        <input
-          type="datetime-local"
-          name="start_date"
-          value={formData.start_date}
-          onChange={handleChange}
-          disabled={loading}
-        />
-
-        <label
-          style={{ display: "block", margin: "16px 0 8px", fontWeight: "600" }}
-        >
-          Ngày kết thúc (để trống = không giới hạn):
-        </label>
-        <input
-          type="datetime-local"
-          name="expires_at"
-          value={formData.expires_at}
-          onChange={handleChange}
-          disabled={loading}
-        />
-
-        <label
-          style={{ display: "block", margin: "16px 0 8px", fontWeight: "600" }}
-        >
-          Số lượng phát ra (để trống = không giới hạn):
-        </label>
-        <input
-          type="number"
-          name="total_issued"
-          value={formData.total_issued}
-          onChange={handleChange}
-          placeholder="VD: 50 (tổng số khách có thể nhận)"
-          min="1"
-          disabled={loading}
-        />
-        <p
-          style={{
-            fontSize: "0.85rem",
-            color: "#666",
-            margin: "-8px 0 16px 0",
-          }}
-        >
-          Mỗi khách chỉ nhận được 1 lần. Khi đủ số lượng, voucher sẽ hết.
-        </p>
-
-        <div className="form-actions">
-          <button type="submit" className="btn-primary" disabled={loading}>
-            {loading
-              ? "Đang lưu..."
-              : voucher
-              ? "Cập nhật Voucher"
-              : "Tạo Voucher"}
-          </button>
-          <button
-            type="button"
-            className="btn-cancel"
-            onClick={onClose}
-            disabled={loading}
-          >
-            Hủy
-          </button>
-        </div>
-      </form>
+          Hủy
+        </button>
+      </div>
     </div>
   );
 };

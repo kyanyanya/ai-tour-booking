@@ -1,61 +1,111 @@
 /* src/styles/components/forms/CreateVoucherForm.css */
 .create-voucher-form {
   background: white;
-  padding: 32px;
   border-radius: 16px;
-  width: 520px;
+  width: 550px;
   max-width: 95vw;
+  max-height: 90vh; /* Giới hạn chiều cao modal */
+  display: flex;
+  flex-direction: column;
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22);
   font-family: "Segoe UI", sans-serif;
+  overflow: hidden; /* Quan trọng: ẩn overflow để scroll bên trong */
 }
 
 .create-voucher-form h2 {
-  margin: 0 0 28px;
-  font-size: 1.6rem;
+  margin: 0;
+  padding: 24px 32px 20px;
+  font-size: 1.5rem;
   font-weight: 700;
   text-align: center;
   color: #1a1a1a;
+  border-bottom: 1px solid #eee;
+  flex-shrink: 0;
 }
 
-.create-voucher-form input {
-  width: 100%;
-  padding: 13px 16px;
-  border: 1.8px solid #e0e0e0;
-  border-radius: 12px;
+.form-scroll-container {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px 32px;
+}
+
+.form-scroll-container::-webkit-scrollbar {
+  width: 6px;
+}
+
+.form-scroll-container::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 10px;
+}
+
+.form-scroll-container::-webkit-scrollbar-thumb {
+  background: #c0c0c0;
+  border-radius: 10px;
+}
+
+.form-group {
+  margin-bottom: 18px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #333;
   font-size: 0.95rem;
-  margin-bottom: 16px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 12px 14px;
+  border: 1.8px solid #e0e0e0;
+  border-radius: 10px;
+  font-size: 0.95rem;
   background: #fdfdff;
   box-sizing: border-box;
+  transition: border 0.2s;
 }
 
-.create-voucher-form input:focus {
+.form-group input:focus,
+.form-group select:focus {
   outline: none;
   border-color: #4361ee;
   box-shadow: 0 0 0 4px rgba(67, 97, 238, 0.15);
 }
 
-.form-note {
-  background: #fefce8;
-  padding: 12px;
-  border-radius: 8px;
-  margin: 16px 0;
-  font-size: 0.9rem;
-  color: #92400e;
-  border: 1px solid #fde68a;
+.form-group small {
+  display: block;
+  margin-top: 6px;
+  font-size: 0.82rem;
+  color: #666;
 }
 
-.form-actions {
+.form-row {
   display: flex;
   gap: 16px;
-  margin-top: 32px;
+}
+
+.form-row .form-group {
+  flex: 1;
+}
+
+/* Nút cố định ở dưới */
+.form-actions-fixed {
+  flex-shrink: 0;
+  display: flex;
+  gap: 16px;
+  padding: 20px 32px;
+  background: white;
+  border-top: 1px solid #eee;
 }
 
 .btn-primary,
 .btn-cancel {
   flex: 1;
-  padding: 15px;
+  padding: 14px;
   border: none;
-  border-radius: 12px;
+  border-radius: 10px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
@@ -67,7 +117,7 @@
   color: white;
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   background: #3651d4;
 }
 
@@ -77,28 +127,12 @@
   border: 1.5px solid #ddd;
 }
 
-.btn-cancel:hover {
+.btn-cancel:hover:not(:disabled) {
   background: #e9ecef;
 }
-.create-voucher-form select {
-  width: 100%;
-  padding: 13px 16px;
-  border: 1.8px solid #e0e0e0;
-  border-radius: 12px;
-  font-size: 0.95rem;
-  background: #fdfdff;
-  margin-bottom: 16px;
-  transition: all 0.3s ease;
-}
 
-.create-voucher-form select:focus {
-  outline: none;
-  border-color: #4361ee;
-  box-shadow: 0 0 0 4px rgba(67, 97, 238, 0.15);
-}
-
-.create-voucher-form label {
-  font-weight: 600;
-  color: #333;
-  font-size: 1.05rem;
+.btn-primary:disabled,
+.btn-cancel:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
 }
