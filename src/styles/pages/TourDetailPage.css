@@ -508,7 +508,96 @@
   font-weight: 600;
   cursor: pointer;
 }
+/* Lịch trình - Dropdown đơn giản, sạch sẽ */
+.tdp-itinerary {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
 
+.tdp-itinerary-day-item {
+  background: #ffffff;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+
+.tdp-itinerary-day-header {
+  padding: 18px 24px;
+  background: #f8f9fc;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s ease;
+}
+
+.tdp-itinerary-day-header:hover {
+  background: #eef2ff;
+}
+
+.tdp-itinerary-day-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #2c3e50;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tdp-day-label {
+  color: #4361ee;
+  font-weight: 700;
+  margin-right: 8px;
+}
+
+.tdp-day-content {
+  flex: 1;
+  color: #1e293b;
+}
+
+.tdp-toggle-arrow {
+  font-size: 1rem;
+  color: #666;
+  font-weight: bold;
+}
+
+.tdp-itinerary-day-content {
+  padding: 0 24px 24px;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: #444;
+}
+
+.tdp-day-description {
+  margin: 16px 0 0;
+}
+
+.tdp-day-activities {
+  list-style: none;
+  padding: 0;
+  margin: 16px 0 0;
+}
+
+.tdp-day-activities li {
+  padding: 8px 0 8px 24px;
+  position: relative;
+  color: #333;
+}
+
+.tdp-day-activities li::before {
+  content: "•";
+  position: absolute;
+  left: 0;
+  color: #4361ee;
+  font-weight: bold;
+  font-size: 1.4rem;
+}
+
+.tdp-no-detail {
+  color: #999;
+  font-style: italic;
+  margin: 16px 0 0;
+}
 /* RESPONSIVE */
 @media (max-width: 1200px) {
   .tdp-hero {

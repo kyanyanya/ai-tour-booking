@@ -5,13 +5,13 @@ import axios from "axios";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { toast } from "react-toastify";
-import { useAuth } from "../auth/AuthContext"; // Thêm useAuth để kiểm tra login
+import { useAuth } from "../auth/AuthContext";
 import "../styles/pages/TourDetailPage.css";
 
 const TourDetailPage = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { user, session } = useAuth(); // Lấy user và session từ context
+  const { user, session } = useAuth();
 
   const [tour, setTour] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -20,6 +20,9 @@ const TourDetailPage = () => {
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [bookingDate, setBookingDate] = useState("");
   const [numberOfPeople, setNumberOfPeople] = useState(1);
+
+  // State cho dropdown lịch trình (mở/đóng từng ngày)
+  const [openDays, setOpenDays] = useState({});
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -70,40 +73,69 @@ const TourDetailPage = () => {
     });
   };
 
-  const renderItineraryItem = (item, index) => {
+  // Toggle mở/đóng ngày
+  const toggleDay = (index) => {
+    setOpenDays((prev) => ({
+      ...prev,
+      [index]: !prev[index],
+    }));
+  };
+
+  // Render từng ngày trong lịch trình
+  const renderItineraryDay = (item, index) => {
+    const isOpen = openDays[index];
+
+    let title = "";
+    let description = "";
+    let activities = [];
+
     if (typeof item === "string") {
-      return (
-        <div key={index} className="tdp-itinerary-item">
-          <div className="tdp-itinerary-day">Ngày {index + 1}</div>
-          <div className="tdp-itinerary-content">
-            <p>{item}</p>
-          </div>
-        </div>
-      );
+      description = item;
+      title = `Ngày ${index + 1}`;
+    } else if (typeof item === "object" && item !== null) {
+      title = item.title || `Ngày ${index + 1}`;
+      description = item.description || "";
+      activities = Array.isArray(item.activities) ? item.activities : [];
+    } else {
+      title = `Ngày ${index + 1}`;
     }
 
-    if (typeof item === "object" && item !== null) {
-      return (
-        <div key={index} className="tdp-itinerary-item">
-          <div className="tdp-itinerary-day">Ngày {index + 1}</div>
-          <div className="tdp-itinerary-content">
-            {item.title && (
-              <h3 className="tdp-itinerary-title">{item.title}</h3>
+    return (
+      <div key={index} className="tdp-itinerary-day-item">
+        <div
+          className="tdp-itinerary-day-header"
+          onClick={() => toggleDay(index)}
+        >
+          <h3 className="tdp-itinerary-day-title">
+            <span className="tdp-day-label">Ngày {index + 1}:</span>
+            <span className="tdp-day-content">
+              {title.replace(`Ngày ${index + 1}`, "").trim()}
+            </span>
+            <span className="tdp-toggle-arrow">{isOpen ? "▲" : "▼"}</span>
+          </h3>
+        </div>
+
+        {isOpen && (
+          <div className="tdp-itinerary-day-content">
+            {description && (
+              <p className="tdp-day-description">{description}</p>
             )}
-            {item.description && <p>{item.description}</p>}
-            {item.activities && Array.isArray(item.activities) && (
-              <ul className="tdp-activities">
-                {item.activities.map((activity, idx) => (
-                  <li key={idx}>{activity}</li>
+            {activities.length > 0 && (
+              <ul className="tdp-day-activities">
+                {activities.map((act, i) => (
+                  <li key={i}>{act}</li>
                 ))}
               </ul>
             )}
+            {!description && activities.length === 0 && (
+              <p className="tdp-no-detail">
+                Chưa có thông tin chi tiết cho ngày này.
+              </p>
+            )}
           </div>
-        </div>
-      );
-    }
-
-    return null;
+        )}
+      </div>
+    );
   };
 
   // Xử lý nút "Đặt tour ngay"
@@ -133,22 +165,20 @@ const TourDetailPage = () => {
       const response = await axios.post(
         `${supabaseUrl}/rest/v1/bookings`,
         {
-          user_id: user.id, // từ auth.users
+          user_id: user.id,
           tour_id: tour.id,
           booking_date: bookingDate,
           number_of_people: numberOfPeople,
           total_price: totalPrice,
           status: "pending",
           payment_status: "unpaid",
-          contact_name: user.full_name || "", // tạm để trống, sẽ điền ở bước sau
-          contact_phone: "", // sẽ điền ở ContactInfo
         },
         {
           headers: {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
-            Prefer: "return=representation", // trả về data vừa insert
+            Prefer: "return=representation",
           },
         }
       );
@@ -156,7 +186,6 @@ const TourDetailPage = () => {
       const newBooking = response.data[0];
       toast.success("Tạo đơn đặt tour thành công!");
 
-      // Chuyển sang trang nhập thông tin liên hệ
       navigate("/checkout/contact", {
         state: {
           bookingId: newBooking.id,
@@ -278,7 +307,11 @@ const TourDetailPage = () => {
                 </svg>
                 <span>
                   {tour.duration_days
-                    ? `${tour.duration_days} ngày`
+                    ? `${tour.duration_days} ngày ${
+                        tour.duration_nights
+                          ? `- ${tour.duration_nights} đêm`
+                          : ""
+                      }`
                     : "Chưa xác định"}
                 </span>
               </div>
@@ -292,15 +325,15 @@ const TourDetailPage = () => {
                   stroke="currentColor"
                   strokeWidth="2"
                 >
-                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-                  <circle cx="12" cy="7" r="4" />
+                  <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
                 </svg>
                 <span>{tour.partner_name || "Đối tác"}</span>
               </div>
             </div>
 
             <div className="tdp-price-section">
-              <div className="tdp-price-label">Giá tour</div>
+              <div className="tdp-price-label">Giá tour / người</div>
               <div className="tdp-price">{formatPrice(tour.price)}</div>
               <div className="tdp-price-note">
                 * Giá có thể thay đổi theo số lượng người
@@ -325,7 +358,6 @@ const TourDetailPage = () => {
           </div>
         </div>
 
-        {/* Phần mô tả, lịch trình, thông tin bổ sung giữ nguyên như cũ */}
         <div className="tdp-content">
           <div className="tdp-section">
             <h2 className="tdp-section-title">Mô tả tour</h2>
@@ -338,20 +370,18 @@ const TourDetailPage = () => {
             </div>
           </div>
 
-          {tour.itinerary && (
-            <div className="tdp-section">
-              <h2 className="tdp-section-title">Lịch trình chi tiết</h2>
-              <div className="tdp-itinerary">
-                {Array.isArray(tour.itinerary) && tour.itinerary.length > 0 ? (
-                  tour.itinerary.map((item, index) =>
-                    renderItineraryItem(item, index)
-                  )
-                ) : (
-                  <p className="tdp-no-data">Chưa có lịch trình chi tiết</p>
-                )}
+          {tour.itinerary &&
+            Array.isArray(tour.itinerary) &&
+            tour.itinerary.length > 0 && (
+              <div className="tdp-section">
+                <h2 className="tdp-section-title">Lịch trình chi tiết</h2>
+                <div className="tdp-itinerary">
+                  {tour.itinerary.map((item, index) =>
+                    renderItineraryDay(item, index)
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            )}
 
           <div className="tdp-section">
             <h2 className="tdp-section-title">Thông tin bổ sung</h2>
@@ -431,10 +461,13 @@ const TourDetailPage = () => {
           </div>
         </div>
 
-        {/* Modal chọn ngày và số người */}
+        {/* Modal đặt tour */}
         {showBookingModal && (
-          <div className="tdp-modal-overlay">
-            <div className="tdp-modal">
+          <div
+            className="tdp-modal-overlay"
+            onClick={() => setShowBookingModal(false)}
+          >
+            <div className="tdp-modal" onClick={(e) => e.stopPropagation()}>
               <h2>Xác nhận đặt tour</h2>
               <p>
                 <strong>{tour.name}</strong>
