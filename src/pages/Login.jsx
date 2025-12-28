@@ -82,14 +82,12 @@ const Login = () => {
       localStorage.setItem("userId", user_id);
 
       // Thông báo thành công bằng toastify
-      toast.success(
-        `Chào mừng trở lại, ${fullName}! Đang chuyển hướng đến Trang chủ...`
-      );
+      toast.success(`Chào mừng, ${fullName}!`);
 
       // CHUYỂN HƯỚNG: Luôn về Home
       setTimeout(() => {
         navigate("/");
-      }, 1500);
+      }, 500);
     } catch (err) {
       console.error(
         "Lỗi Đăng nhập:",
