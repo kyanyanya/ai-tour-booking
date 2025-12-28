@@ -6,12 +6,16 @@ import Footer from "../components/Footer";
 import { toast } from "react-toastify";
 import CryptoJS from "crypto-js";
 import axios from "axios";
+import ConfirmModal from "../components/modals/ConfirmModal"; // Thêm import
 import "../styles/pages/Checkout.css";
 
 const Checkout = () => {
   const [paymentMethod, setPaymentMethod] = React.useState("vnpay");
   const [loading, setLoading] = React.useState(false);
   const [applying, setApplying] = React.useState(false);
+
+  // State cho ConfirmModal
+  const [showConfirmModal, setShowConfirmModal] = React.useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -28,7 +32,7 @@ const Checkout = () => {
   const [rewardPoints, setRewardPoints] = React.useState(0);
   const [pointsToUse, setPointsToUse] = React.useState(0);
   const [voucherCode, setVoucherCode] = React.useState("");
-  const [appliedVoucher, setAppliedVoucher] = React.useState(null); // { code, discount_amount }
+  const [appliedVoucher, setAppliedVoucher] = React.useState(null);
 
   const [finalPrice, setFinalPrice] = React.useState(originalTotalPrice || 0);
 
@@ -74,7 +78,7 @@ const Checkout = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookingId, tour, originalTotalPrice, navigate, userId, accessToken]);
 
-  // Tính giá cuối dựa trên 1 cách giảm giá duy nhất
+  // Tính giá cuối
   React.useEffect(() => {
     let discount = 0;
 
@@ -95,7 +99,7 @@ const Checkout = () => {
     }).format(price);
   };
 
-  // Áp dụng voucher → reset điểm
+  // Áp dụng voucher
   const handleApplyVoucher = async () => {
     if (!voucherCode.trim()) {
       toast.error("Vui lòng nhập mã voucher!");
@@ -133,7 +137,6 @@ const Checkout = () => {
         return;
       }
 
-      // Nếu đang dùng điểm → cảnh báo và reset điểm
       if (pointsToUse > 0) {
         toast.info("Đã xóa điểm thưởng để áp dụng voucher.");
         setPointsToUse(0);
@@ -158,13 +161,11 @@ const Checkout = () => {
     }
   };
 
-  // Xóa voucher → cho phép dùng điểm lại
   const handleRemoveVoucher = () => {
     setAppliedVoucher(null);
     toast.info("Đã xóa voucher – bạn có thể dùng điểm thưởng.");
   };
 
-  // Khi thay đổi điểm → xóa voucher nếu có
   const handlePointsChange = (value) => {
     const newPoints = Math.min(parseInt(value) || 0, maxPointsCanUse);
 
@@ -176,7 +177,27 @@ const Checkout = () => {
     setPointsToUse(newPoints);
   };
 
+  // Quay lại trang ContactInfo để chỉnh sửa thông tin
+  const handleBackToContact = () => {
+    navigate("/checkout/contact", {
+      state: {
+        bookingId,
+        tour,
+        numberOfPeople,
+        totalPrice: originalTotalPrice,
+        bookingDate,
+      },
+    });
+  };
+
+  // Mở modal confirm trước khi thanh toán
+  const handleConfirmAndPay = () => {
+    setShowConfirmModal(true);
+  };
+
+  // Hàm thực hiện thanh toán (gọi sau khi confirm)
   const handlePay = async () => {
+    setShowConfirmModal(false);
     if (paymentMethod !== "vnpay") {
       toast.info("Vui lòng chọn phương thức VNPay!");
       return;
@@ -195,12 +216,9 @@ const Checkout = () => {
         date.getSeconds().toString().padStart(2, "0");
 
       const extraParams = new URLSearchParams();
-      if (pointsToUse > 0) {
-        extraParams.append("used_points", pointsToUse);
-      }
-      if (appliedVoucher) {
-        extraParams.append("used_voucher", appliedVoucher.code); // Truyền mã để xóa sau thanh toán
-      }
+      if (pointsToUse > 0) extraParams.append("used_points", pointsToUse);
+      if (appliedVoucher)
+        extraParams.append("used_voucher", appliedVoucher.code);
 
       const returnUrlWithParams = `${vnp_ReturnUrl}?${extraParams.toString()}`;
 
@@ -278,7 +296,6 @@ const Checkout = () => {
               <div className="card-info">
                 <p>Bạn sẽ được chuyển hướng an toàn đến cổng VNPay.</p>
 
-                {/* Thông báo quan trọng */}
                 <div
                   style={{
                     margin: "20px 0",
@@ -332,7 +349,7 @@ const Checkout = () => {
                         borderRadius: "8px",
                         border: "1px solid #ccc",
                       }}
-                      disabled={!!appliedVoucher} // Disable nếu đang dùng voucher
+                      disabled={!!appliedVoucher}
                     />
                     <span>→ Giảm {formatPrice(pointsToUse * 700)}</span>
                   </div>
@@ -376,7 +393,7 @@ const Checkout = () => {
                         borderRadius: "8px",
                         border: "1px solid #ccc",
                       }}
-                      disabled={applying || pointsToUse > 0} // Disable nếu đang dùng điểm
+                      disabled={applying || pointsToUse > 0}
                     />
                     <button
                       onClick={handleApplyVoucher}
@@ -497,13 +514,14 @@ const Checkout = () => {
                 </div>
               </div>
 
+              {/* Nút hành động */}
               <div className="action-buttons">
-                <button className="btn-back" onClick={() => navigate(-1)}>
-                  Quay lại
+                <button className="btn-back" onClick={handleBackToContact}>
+                  ← Quay lại chỉnh sửa thông tin
                 </button>
                 <button
                   className="btn-pay"
-                  onClick={handlePay}
+                  onClick={handleConfirmAndPay}
                   disabled={loading || finalPrice <= 0}
                 >
                   {loading
@@ -517,6 +535,16 @@ const Checkout = () => {
           </div>
         </div>
       </div>
+
+      {/* Confirm Modal */}
+      <ConfirmModal
+        isOpen={showConfirmModal}
+        title="Xác nhận thanh toán"
+        message="Khi thanh toán thành công bạn sẽ không thể cập nhật lại thông tin, hãy đảm bảo bạn đã điền đúng và đủ thông tin nhé!"
+        onConfirm={handlePay}
+        onCancel={() => setShowConfirmModal(false)}
+      />
+
       <Footer />
     </>
   );

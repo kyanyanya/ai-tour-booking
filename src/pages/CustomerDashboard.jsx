@@ -6,6 +6,7 @@ import axios from "axios";
 import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { toast } from "react-toastify";
+import ConfirmModal from "../components/modals/ConfirmModal";
 import "../styles/pages/CustomerDashboard.css";
 
 const CustomerDashboard = () => {
@@ -16,6 +17,18 @@ const CustomerDashboard = () => {
   const [loadingPoints, setLoadingPoints] = useState(true);
   const [myVouchers, setMyVouchers] = useState([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
+
+  // Chỉ dùng displayBookings để hiển thị và thao tác xóa/hủy
+  const [displayBookings, setDisplayBookings] = useState([]);
+  const [loadingBookings, setLoadingBookings] = useState(false);
+
+  // State cho modal hủy tour
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [selectedBookingId, setSelectedBookingId] = useState(null);
+
+  // State cho modal xóa tour đã hủy
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [bookingToDelete, setBookingToDelete] = useState(null);
 
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
@@ -49,16 +62,14 @@ const CustomerDashboard = () => {
     };
 
     fetchRewardPoints();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user, userId, accessToken]);
+  }, [user, userId, accessToken, SUPABASE_URL, SUPABASE_ANON_KEY]);
 
-  // Lấy voucher của người dùng khi vào tab Voucher
+  // Lấy voucher
   useEffect(() => {
     if (activeTab === "vouchers" && user && accessToken && userId) {
       const fetchMyVouchers = async () => {
         setLoadingVouchers(true);
         try {
-          // Query voucher mà user nằm trong mảng claimed_by
           const { data } = await axios.get(
             `${SUPABASE_URL}/rest/v1/vouchers?claimed_by=cs.{${userId}}&select=*,tours(name,tour_code)&order=created_at.desc`,
             {
@@ -71,7 +82,7 @@ const CustomerDashboard = () => {
 
           setMyVouchers(data || []);
         } catch (err) {
-          console.error("Lỗi lấy voucher của khách:", err);
+          console.error("Lỗi lấy voucher:", err);
           toast.error("Không thể tải voucher của bạn.");
           setMyVouchers([]);
         } finally {
@@ -80,12 +91,38 @@ const CustomerDashboard = () => {
       };
 
       fetchMyVouchers();
-    } else if (activeTab === "vouchers") {
-      setMyVouchers([]);
-      setLoadingVouchers(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeTab, user, userId, accessToken]);
+  }, [activeTab, user, userId, accessToken, SUPABASE_URL, SUPABASE_ANON_KEY]);
+
+  // Lấy lịch sử đặt tour
+  useEffect(() => {
+    if (activeTab === "bookings" && user && accessToken && userId) {
+      const fetchBookings = async () => {
+        setLoadingBookings(true);
+        try {
+          const { data } = await axios.get(
+            `${SUPABASE_URL}/rest/v1/bookings?user_id=eq.${userId}&select=*,tours(name,image,location,duration_days)&order=created_at.desc`,
+            {
+              headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${accessToken}`,
+              },
+            }
+          );
+
+          setDisplayBookings(data || []);
+        } catch (err) {
+          console.error("Lỗi lấy lịch sử đặt tour:", err);
+          toast.error("Không thể tải lịch sử đặt tour.");
+          setDisplayBookings([]);
+        } finally {
+          setLoadingBookings(false);
+        }
+      };
+
+      fetchBookings();
+    }
+  }, [activeTab, user, userId, accessToken, SUPABASE_URL, SUPABASE_ANON_KEY]);
 
   if (!user || user.role !== "customer") {
     return <Navigate to="/login" replace />;
@@ -98,13 +135,114 @@ const CustomerDashboard = () => {
     }).format(price);
   };
 
-  const formatDate = (date) => {
-    if (!date) return "Không giới hạn";
-    return new Date(date).toLocaleDateString("vi-VN", {
+  const formatDate = (dateString) => {
+    if (!dateString) return "Chưa xác định";
+    return new Date(dateString).toLocaleDateString("vi-VN", {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
     });
+  };
+
+  const calculateEndDate = (bookingDate, durationDays) => {
+    if (!bookingDate || !durationDays) return "Chưa xác định";
+    const start = new Date(bookingDate);
+    const end = new Date(start);
+    end.setDate(start.getDate() + durationDays - 1);
+    return formatDate(end);
+  };
+
+  const getPaymentStatus = (status) => {
+    switch (status) {
+      case "unpaid":
+        return { text: "Chưa thanh toán", class: "pending" };
+      case "paid":
+        return { text: "Đã thanh toán", class: "confirmed" };
+      default:
+        return { text: status || "Chưa rõ", class: "pending" };
+    }
+  };
+
+  const getOrderStatus = (status) => {
+    switch (status) {
+      case "pending":
+        return { text: "Chờ xử lý", class: "pending" };
+      case "confirmed":
+        return { text: "Đã xác nhận", class: "confirmed" };
+      case "completed":
+        return { text: "Hoàn thành", class: "completed" };
+      case "cancelled":
+        return { text: "Đã hủy", class: "cancelled" };
+      default:
+        return { text: status || "Chưa rõ", class: "pending" };
+    }
+  };
+
+  const canCancel = (booking) => {
+    return (
+      booking.payment_status === "unpaid" && booking.status !== "cancelled"
+    );
+  };
+
+  const canDelete = (booking) => {
+    return booking.status === "cancelled";
+  };
+
+  // Mở modal hủy tour
+  const handleCancelBooking = (bookingId) => {
+    setSelectedBookingId(bookingId);
+    setShowCancelModal(true);
+  };
+
+  // Xác nhận hủy tour
+  const confirmCancelBooking = async () => {
+    if (!selectedBookingId) return;
+
+    try {
+      await axios.patch(
+        `${SUPABASE_URL}/rest/v1/bookings?id=eq.${selectedBookingId}`,
+        { status: "cancelled" },
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      toast.success("Đã hủy tour thành công!");
+      setDisplayBookings((prev) =>
+        prev.map((b) =>
+          b.id === selectedBookingId ? { ...b, status: "cancelled" } : b
+        )
+      );
+    } catch (err) {
+      console.error("Lỗi hủy tour:", err);
+      toast.error("Không thể hủy tour. Vui lòng thử lại!");
+    } finally {
+      setShowCancelModal(false);
+      setSelectedBookingId(null);
+    }
+  };
+
+  // Mở modal xóa tour đã hủy
+  const handleDeleteCancelledBooking = (booking) => {
+    setBookingToDelete(booking);
+    setShowDeleteModal(true);
+  };
+
+  // Xác nhận xóa khỏi danh sách hiển thị
+  const confirmDeleteBooking = () => {
+    if (!bookingToDelete) return;
+
+    setDisplayBookings((prev) =>
+      prev.filter((b) => b.id !== bookingToDelete.id)
+    );
+
+    toast.success("Đã xóa tour đã hủy khỏi danh sách!");
+    setShowDeleteModal(false);
+    setBookingToDelete(null);
   };
 
   return (
@@ -172,15 +310,15 @@ const CustomerDashboard = () => {
 
         {/* Content */}
         <div className="cd2-content">
-          {/* === TỔNG QUAN === */}
+          {/* Tổng quan */}
           {activeTab === "overview" && (
             <>
               <div className="cd2-stats-grid">
                 <div className="cd2-stat-card">
                   <div className="cd2-stat-icon bookings">Tour</div>
-                  <div className="cd2-stat-value">12</div>
+                  <div className="cd2-stat-value">{displayBookings.length}</div>
                   <div className="cd2-stat-label">Tour đã đặt</div>
-                  <div className="cd2-stat-change up">+3</div>
+                  <div className="cd2-stat-change up">Mới</div>
                 </div>
                 <div className="cd2-stat-card">
                   <div className="cd2-stat-icon points">Points</div>
@@ -198,9 +336,9 @@ const CustomerDashboard = () => {
                 </div>
                 <div className="cd2-stat-card">
                   <div className="cd2-stat-icon reviews">Review</div>
-                  <div className="cd2-stat-value">8</div>
+                  <div className="cd2-stat-value">0</div>
                   <div className="cd2-stat-label">Đánh giá đã gửi</div>
-                  <div className="cd2-stat-change up">+2</div>
+                  <div className="cd2-stat-change up">Chưa có</div>
                 </div>
               </div>
 
@@ -221,63 +359,166 @@ const CustomerDashboard = () => {
             </>
           )}
 
-          {/* === LỊCH SỬ ĐẶT TOUR === */}
+          {/* Lịch sử đặt tour */}
           {activeTab === "bookings" && (
             <div className="cd2-table-wrapper">
               <div className="cd2-table-header">
                 <h3>Lịch sử đặt tour</h3>
                 <select className="cd2-period">
                   <option>Tất cả</option>
-                  <option>Đang xử lý</option>
+                  <option>Chưa thanh toán</option>
+                  <option>Đã thanh toán</option>
                   <option>Đã hoàn thành</option>
                   <option>Đã hủy</option>
                 </select>
               </div>
-              <table className="cd2-table">
-                <thead>
-                  <tr>
-                    <th>Mã đơn</th>
-                    <th>Tour</th>
-                    <th>Ngày đi</th>
-                    <th>Tổng tiền</th>
-                    <th>Trạng thái</th>
-                    <th>Hành động</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td>#ORD-7742</td>
-                    <td>
-                      <div className="cd2-tour-cell">
-                        <img
-                          src="https://images.unsplash.com/photo-1501785888041-af3ef285b470?ixlib=rb-4.0.3&auto=format&fit=crop&w=48&q=80"
-                          alt="Hạ Long"
-                          className="cd2-tour-img"
-                        />
-                        <div>
-                          Vịnh Hạ Long 2N1Đ
-                          <small>Du thuyền 5*</small>
-                        </div>
-                      </div>
-                    </td>
-                    <td>20/12/2025</td>
-                    <td>6.180.000đ</td>
-                    <td>
-                      <span className="cd2-status confirmed">
-                        Đã thanh toán
-                      </span>
-                    </td>
-                    <td>
-                      <button className="cd2-btn view">Xem</button>
-                      <button className="cd2-btn review">Đánh giá</button>
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
+
+              {loadingBookings ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải lịch sử đặt tour...
+                </div>
+              ) : displayBookings.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#888",
+                  }}
+                >
+                  <p>Bạn chưa đặt tour nào.</p>
+                  <p>Hãy khám phá các tour hấp dẫn ngay!</p>
+                  <button
+                    className="cd2-btn-create"
+                    onClick={() => navigate("/tours")}
+                    style={{ marginTop: "16px" }}
+                  >
+                    Tìm tour mới
+                  </button>
+                </div>
+              ) : (
+                <table className="cd2-table">
+                  <thead>
+                    <tr>
+                      <th>Mã đơn</th>
+                      <th>Tour</th>
+                      <th>Ngày đi - Ngày về</th>
+                      <th>Tổng tiền</th>
+                      <th>Thanh toán</th>
+                      <th>Trạng thái đơn</th>
+                      <th>Hành động</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {displayBookings.map((booking) => {
+                      const tour = booking.tours || {};
+                      const paymentStatus = getPaymentStatus(
+                        booking.payment_status
+                      );
+                      const orderStatus = getOrderStatus(booking.status);
+                      const startDate = formatDate(booking.booking_date);
+                      const endDate = calculateEndDate(
+                        booking.booking_date,
+                        tour.duration_days
+                      );
+
+                      return (
+                        <tr key={booking.id}>
+                          <td>#{booking.id.slice(0, 8).toUpperCase()}</td>
+                          <td>
+                            <div className="cd2-tour-cell">
+                              <img
+                                src={
+                                  tour.image || "https://via.placeholder.com/48"
+                                }
+                                alt={tour.name}
+                                className="cd2-tour-img"
+                              />
+                              <div>
+                                {tour.name || "Tour không xác định"}
+                                <small>{tour.location}</small>
+                              </div>
+                            </div>
+                          </td>
+                          <td>
+                            {startDate} → {endDate}
+                            <br />
+                            <small>{booking.number_of_people} người</small>
+                          </td>
+                          <td>{formatPrice(booking.total_price)}</td>
+                          <td>
+                            <span
+                              className={`cd2-status ${paymentStatus.class}`}
+                            >
+                              {paymentStatus.text}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`cd2-status ${orderStatus.class}`}>
+                              {orderStatus.text}
+                            </span>
+                          </td>
+                          <td>
+                            {canCancel(booking) ? (
+                              <>
+                                <button
+                                  className="cd2-btn view"
+                                  onClick={() =>
+                                    navigate("/checkout/contact", {
+                                      state: {
+                                        bookingId: booking.id,
+                                        tour: tour,
+                                        numberOfPeople:
+                                          booking.number_of_people,
+                                        totalPrice: booking.total_price,
+                                        bookingDate: booking.booking_date,
+                                      },
+                                    })
+                                  }
+                                >
+                                  Thanh toán
+                                </button>
+                                <button
+                                  className="cd2-btn cancel"
+                                  onClick={() =>
+                                    handleCancelBooking(booking.id)
+                                  }
+                                >
+                                  Hủy tour
+                                </button>
+                              </>
+                            ) : canDelete(booking) ? (
+                              <button
+                                className="cd2-btn delete"
+                                onClick={() =>
+                                  handleDeleteCancelledBooking(booking)
+                                }
+                              >
+                                Xóa
+                              </button>
+                            ) : (
+                              <span
+                                style={{ color: "#999", fontSize: "0.85rem" }}
+                              >
+                                Không thể thao tác
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
 
-          {/* === ĐIỂM THƯỞNG === */}
+          {/* Điểm thưởng */}
           {activeTab === "points" && (
             <div className="cd2-table-wrapper">
               <h3>Chi tiết điểm thưởng</h3>
@@ -303,11 +544,10 @@ const CustomerDashboard = () => {
             </div>
           )}
 
-          {/* === VOUCHER === */}
+          {/* Voucher */}
           {activeTab === "vouchers" && (
             <div className="cd2-table-wrapper">
               <h3>Voucher đang sở hữu ({myVouchers.length})</h3>
-
               {loadingVouchers ? (
                 <div
                   style={{
@@ -370,39 +610,31 @@ const CustomerDashboard = () => {
             </div>
           )}
 
-          {/* === ĐÁNH GIÁ === */}
+          {/* Đánh giá */}
           {activeTab === "reviews" && (
             <div className="cd2-table-wrapper">
               <h3>Đánh giá của bạn</h3>
-              <div className="cd2-review-item">
-                <div>
-                  <strong>Vịnh Hạ Long 2N1Đ</strong>
-                  <p>
-                    "Hướng dẫn viên nhiệt tình, cảnh đẹp, ăn uống tuyệt vời!"
-                  </p>
-                  <div className="cd2-rate good">5.0</div>
-                </div>
-                <button className="cd2-btn edit">Sửa</button>
-              </div>
-              <div className="cd2-review-item">
-                <div>
-                  <strong>Phú Quốc 3N2Đ</strong>
-                  <p>"Bãi biển sạch, nhưng khách sạn hơi xa trung tâm."</p>
-                  <div className="cd2-rate good">4.0</div>
-                </div>
-                <button className="cd2-btn edit">Sửa</button>
-              </div>
+              <p
+                style={{ textAlign: "center", padding: "60px", color: "#888" }}
+              >
+                Chưa có đánh giá nào. Bạn sẽ có thể đánh giá sau khi hoàn thành
+                tour.
+              </p>
             </div>
           )}
 
-          {/* === HỒ SƠ === */}
+          {/* Hồ sơ */}
           {activeTab === "profile" && (
             <div className="cd2-table-wrapper">
               <h3>Thông tin cá nhân</h3>
               <div className="cd2-profile-form">
                 <div className="cd2-input-group">
                   <label>Họ và tên</label>
-                  <input type="text" defaultValue={user.full_name || ""} />
+                  <input
+                    type="text"
+                    defaultValue={user.full_name || ""}
+                    readOnly
+                  />
                 </div>
                 <div className="cd2-input-group">
                   <label>Email</label>
@@ -426,6 +658,24 @@ const CustomerDashboard = () => {
           )}
         </div>
       </div>
+
+      {/* Modal xác nhận hủy tour */}
+      <ConfirmModal
+        isOpen={showCancelModal}
+        title="Xác nhận hủy tour"
+        message="Bạn có chắc chắn muốn hủy tour này? Hành động này không thể hoàn tác."
+        onConfirm={confirmCancelBooking}
+        onCancel={() => setShowCancelModal(false)}
+      />
+
+      {/* Modal xác nhận xóa tour đã hủy */}
+      <ConfirmModal
+        isOpen={showDeleteModal}
+        title="Xóa tour đã hủy"
+        message="Bạn có muốn xóa tour này khỏi danh sách không? Tour vẫn tồn tại trong hệ thống nhưng sẽ không hiển thị nữa."
+        onConfirm={confirmDeleteBooking}
+        onCancel={() => setShowDeleteModal(false)}
+      />
 
       <Footer />
     </>

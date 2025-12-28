@@ -259,6 +259,7 @@
 .cd2-table td {
   padding: 16px;
   border-bottom: 1px solid #eee;
+  vertical-align: middle;
 }
 
 .cd2-tour-cell {
@@ -284,25 +285,79 @@
   display: block;
 }
 
-/* STATUS & POINTS */
+/* STATUS BADGES */
 .cd2-status {
   padding: 6px 12px;
   border-radius: 20px;
   font-size: 0.8rem;
   font-weight: 600;
+  display: inline-block;
+}
+
+.cd2-status.pending {
+  background: #fef3c7;
+  color: #92400e;
 }
 
 .cd2-status.confirmed {
   background: #dcfce7;
   color: #166534;
 }
-.cd2-points-earned {
-  color: #10b981;
+
+.cd2-status.completed {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.cd2-status.cancelled {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+/* ACTION BUTTONS IN TABLE */
+.cd2-btn {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  margin-right: 6px;
+  transition: all 0.2s ease;
+}
+
+.cd2-btn.view {
+  background: #e0e7ff;
+  color: #4338ca;
+}
+
+.cd2-btn.view:hover {
+  background: #c7d2fe;
+}
+
+.cd2-btn.review {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+.cd2-btn.review:hover {
+  background: #fde68a;
+}
+
+/* NÚT HỦY TOUR - ĐẸP, DỄ NHÌN HƠN */
+.cd2-btn.cancel {
+  background: white;
+  color: #dc2626;
+  border: 1.8px solid #dc2626;
   font-weight: 600;
 }
-.cd2-points-spent {
-  color: #ef4444;
-  font-weight: 600;
+
+.cd2-btn.cancel:hover {
+  background: #fee2e2;
+  border-color: #b91c1c;
+  color: #b91c1c;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.15);
 }
 
 /* VOUCHER GRID */
@@ -338,11 +393,6 @@
   margin: 8px 0;
   color: #d97706;
 }
-.cd2-voucher-expiry {
-  color: #92400e;
-  font-size: 0.85rem;
-  margin: 8px 0;
-}
 
 .cd2-btn.use {
   background: #4361ee;
@@ -354,6 +404,10 @@
   font-weight: 600;
   cursor: pointer;
   margin-top: 8px;
+}
+
+.cd2-btn.use:hover {
+  background: #3651d4;
 }
 
 /* REVIEW ITEM */
@@ -405,30 +459,11 @@
   border-radius: 12px;
   font-weight: 600;
   cursor: pointer;
+  margin-top: 20px;
 }
 
-/* BUTTONS */
-.cd2-btn {
-  padding: 6px 12px;
-  border: none;
-  border-radius: 8px;
-  font-size: 0.8rem;
-  font-weight: 600;
-  cursor: pointer;
-  margin-right: 6px;
-}
-
-.cd2-btn.view {
-  background: #e0e7ff;
-  color: #4338ca;
-}
-.cd2-btn.review {
-  background: #fef3c7;
-  color: #92400e;
-}
-.cd2-btn.edit {
-  background: #e0e7ff;
-  color: #4338ca;
+.cd2-btn.save:hover {
+  background: #3651d4;
 }
 
 /* POINTS SUMMARY */
@@ -475,5 +510,20 @@
   }
   .cd2-period {
     width: 100%;
+  }
+  .cd2-table td {
+    display: block;
+    width: 100%;
+    padding: 8px 0;
+    border: none;
+  }
+  .cd2-table tr {
+    border-bottom: 2px solid #eee;
+    padding-bottom: 12px;
+    margin-bottom: 12px;
+    display: block;
+  }
+  .cd2-table th {
+    display: none;
   }
 }

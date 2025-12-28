@@ -1,5 +1,5 @@
 // src/pages/ContactInfo.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 import Header from "../components/Header";
@@ -11,9 +11,8 @@ import "../styles/pages/ContactInfo.css";
 const ContactInfo = () => {
   const navigate = useNavigate();
   const location = useLocation();
-  const { session } = useAuth();
+  const { session, user } = useAuth();
 
-  // Lấy dữ liệu từ state của TourDetailPage
   const {
     bookingId,
     tour,
@@ -22,8 +21,8 @@ const ContactInfo = () => {
     bookingDate,
   } = location.state || {};
 
-  // Nếu không có dữ liệu → redirect về trang tour (tránh truy cập trực tiếp)
-  React.useEffect(() => {
+  // Redirect nếu thiếu dữ liệu
+  useEffect(() => {
     if (!bookingId || !tour) {
       toast.error("Thông tin đặt tour không hợp lệ!");
       navigate("/tours");
@@ -41,6 +40,72 @@ const ContactInfo = () => {
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  const accessToken = session?.access_token;
+  const userId = user?.id || session?.user?.id;
+
+  // Fetch dữ liệu theo thứ tự ưu tiên: bookings → users
+  useEffect(() => {
+    if (!bookingId || !accessToken) return;
+
+    const fetchContactInfo = async () => {
+      try {
+        // Bước 1: Ưu tiên lấy thông tin từ bảng bookings (nếu có)
+        const { data: bookingData } = await axios.get(
+          `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}&select=contact_name,contact_email,contact_phone,contact_country,notes`,
+          {
+            headers: {
+              apikey: anonKey,
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (bookingData && bookingData.length > 0) {
+          const booking = bookingData[0];
+          // Nếu có bất kỳ thông tin nào trong booking → dùng nó (ưu tiên cao nhất)
+          if (
+            booking.contact_name ||
+            booking.contact_email ||
+            booking.contact_phone
+          ) {
+            setContactName(booking.contact_name || "");
+            setContactEmail(booking.contact_email || "");
+            setContactPhone(booking.contact_phone || "");
+            setContactCountry(booking.contact_country || "Việt Nam");
+            setNotes(booking.notes || "");
+            console.log("Đã lấy thông tin từ bảng bookings (ưu tiên cao nhất)");
+            return; // Dừng lại, không cần fetch từ users nữa
+          }
+        }
+
+        // Bước 2: Nếu không có trong bookings → lấy từ bảng users
+        if (!userId) return;
+
+        const { data: userData } = await axios.get(
+          `${supabaseUrl}/rest/v1/users?user_id=eq.${userId}&select=full_name,email,phone_number`,
+          {
+            headers: {
+              apikey: anonKey,
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        if (userData && userData.length > 0) {
+          const userInfo = userData[0];
+          setContactName(userInfo.full_name || "");
+          setContactEmail(userInfo.email || "");
+          setContactPhone(userInfo.phone_number || "");
+          console.log("Đã lấy thông tin từ bảng users (fallback)");
+        }
+      } catch (err) {
+        console.error("Lỗi khi fetch thông tin liên hệ:", err);
+        // Không hiện toast để tránh làm phiền người dùng
+      }
+    };
+
+    fetchContactInfo();
+  }, [bookingId, userId, accessToken, supabaseUrl, anonKey]);
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat("vi-VN", {
@@ -50,8 +115,12 @@ const ContactInfo = () => {
   };
 
   const handleContinue = async () => {
-    if (!contactName || !contactPhone) {
-      toast.error("Vui lòng điền họ tên và số điện thoại!");
+    if (!contactName.trim()) {
+      toast.error("Vui lòng nhập họ và tên!");
+      return;
+    }
+    if (!contactPhone.trim()) {
+      toast.error("Vui lòng nhập số điện thoại!");
       return;
     }
     if (!agreeTerms) {
@@ -60,21 +129,19 @@ const ContactInfo = () => {
     }
 
     try {
-      // Cập nhật thông tin liên hệ vào booking
       await axios.patch(
         `${supabaseUrl}/rest/v1/bookings?id=eq.${bookingId}`,
         {
-          contact_name: contactName,
-          contact_email: contactEmail || null,
-          contact_phone: contactPhone,
+          contact_name: contactName.trim(),
+          contact_email: contactEmail.trim() || null,
+          contact_phone: contactPhone.trim(),
           contact_country: contactCountry,
-          notes: notes || null,
-          // pickup_time nếu bạn muốn lưu riêng, hiện tại để trong notes
+          notes: notes.trim() || null,
         },
         {
           headers: {
             apikey: anonKey,
-            Authorization: `Bearer ${session.access_token}`,
+            Authorization: `Bearer ${accessToken}`,
             "Content-Type": "application/json",
             Prefer: "return=minimal",
           },
@@ -83,7 +150,6 @@ const ContactInfo = () => {
 
       toast.success("Thông tin liên hệ đã được lưu!");
 
-      // Chuyển sang trang thanh toán
       navigate("/checkout", {
         state: {
           bookingId,
@@ -91,24 +157,15 @@ const ContactInfo = () => {
           numberOfPeople,
           totalPrice,
           bookingDate,
-          contactInfo: {
-            contactName,
-            contactEmail,
-            contactPhone,
-            contactCountry,
-            notes,
-          },
         },
       });
     } catch (err) {
-      console.error("Lỗi cập nhật thông tin liên hệ:", err);
+      console.error("Lỗi cập nhật booking:", err);
       toast.error("Không thể lưu thông tin. Vui lòng thử lại!");
     }
   };
 
-  if (!tour) {
-    return null; // Đang redirect ở useEffect
-  }
+  if (!tour) return null;
 
   return (
     <>
@@ -179,7 +236,7 @@ const ContactInfo = () => {
                 </div>
               </div>
 
-              {/* Hành khách - hiển thị số lượng đã chọn */}
+              {/* Hành khách */}
               <div className="ci-section">
                 <h3>Hành khách</h3>
                 <div className="ci-input-group full">
@@ -260,7 +317,7 @@ const ContactInfo = () => {
               </div>
             </div>
 
-            {/* Right: Order Summary - dynamic */}
+            {/* Right: Order Summary */}
             <div className="ci-summary-section">
               <h3>Tóm tắt đơn hàng</h3>
 
