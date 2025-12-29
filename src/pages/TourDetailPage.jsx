@@ -16,12 +16,12 @@ const TourDetailPage = () => {
   const [tour, setTour] = useState(null);
   const [loading, setLoading] = useState(true);
 
-  // State cho modal booking
+  // Modal booking - đơn giản như cũ
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [bookingDate, setBookingDate] = useState("");
   const [numberOfPeople, setNumberOfPeople] = useState(1);
 
-  // State cho dropdown lịch trình (mở/đóng từng ngày)
+  // Lịch trình collapsible
   const [openDays, setOpenDays] = useState({});
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -73,7 +73,6 @@ const TourDetailPage = () => {
     });
   };
 
-  // Toggle mở/đóng ngày
   const toggleDay = (index) => {
     setOpenDays((prev) => ({
       ...prev,
@@ -81,7 +80,6 @@ const TourDetailPage = () => {
     }));
   };
 
-  // Render từng ngày trong lịch trình
   const renderItineraryDay = (item, index) => {
     const isOpen = openDays[index];
 
@@ -138,7 +136,6 @@ const TourDetailPage = () => {
     );
   };
 
-  // Xử lý nút "Đặt tour ngay"
   const handleBookNow = () => {
     if (!user || !session) {
       toast.warning("Vui lòng đăng nhập để đặt tour!");
@@ -148,7 +145,6 @@ const TourDetailPage = () => {
     setShowBookingModal(true);
   };
 
-  // Xác nhận tạo booking
   const handleConfirmBooking = async () => {
     if (!bookingDate) {
       toast.error("Vui lòng chọn ngày khởi hành!");
@@ -172,6 +168,7 @@ const TourDetailPage = () => {
           total_price: totalPrice,
           status: "pending",
           payment_status: "unpaid",
+          // Không gửi contact_name và contact_phone → sẽ cập nhật ở trang checkout sau
         },
         {
           headers: {
@@ -402,7 +399,7 @@ const TourDetailPage = () => {
                 <div className="tdp-info-content">
                   <h3>Trạng thái</h3>
                   <p
-                    className={`tdp-status tdp-status-${tour.status.toLowerCase()}`}
+                    className={`tdp-status tdp-status-${tour.status?.toLowerCase()}`}
                   >
                     {tour.status === "APPROVED"
                       ? "Đã duyệt"
@@ -461,7 +458,7 @@ const TourDetailPage = () => {
           </div>
         </div>
 
-        {/* Modal đặt tour */}
+        {/* Modal đặt tour - đơn giản như cũ */}
         {showBookingModal && (
           <div
             className="tdp-modal-overlay"
