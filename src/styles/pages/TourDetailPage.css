@@ -598,6 +598,24 @@
   font-style: italic;
   margin: 16px 0 0;
 }
+
+.tdp-modal-large {
+  max-width: 600px;
+  width: 90%;
+}
+
+.tdp-form-row {
+  display: flex;
+  gap: 20px;
+}
+
+.tdp-form-row .tdp-form-group {
+  flex: 1;
+}
+
+.required {
+  color: red;
+}
 /* RESPONSIVE */
 @media (max-width: 1200px) {
   .tdp-hero {
