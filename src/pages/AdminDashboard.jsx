@@ -15,11 +15,13 @@ const AdminDashboard = () => {
   const [tours, setTours] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [partners, setPartners] = useState([]);
   const [loadingTours, setLoadingTours] = useState(false);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [loadingTickets, setLoadingTickets] = useState(false);
+  const [loadingPartners, setLoadingPartners] = useState(false);
 
-  // Modal duyệt/reject tour
+  // Modal tour
   const [approveTourModal, setApproveTourModal] = useState({
     isOpen: false,
     tourId: null,
@@ -47,7 +49,7 @@ const AdminDashboard = () => {
   const [clearAllModal, setClearAllModal] = useState(false);
   const [markAllReadModal, setMarkAllReadModal] = useState(false);
 
-  // Modal xử lý ticket (Nhận xử lý / Từ chối / Hoàn thành)
+  // Modal xử lý ticket
   const [handleTicketModal, setHandleTicketModal] = useState({
     isOpen: false,
     ticketId: null,
@@ -215,7 +217,29 @@ const AdminDashboard = () => {
     }
   }, [session?.access_token, supabaseUrl, anonKey]);
 
-  // Xử lý ticket: Nhận xử lý
+  const fetchPartners = useCallback(async () => {
+    if (!session?.access_token) return;
+    setLoadingPartners(true);
+    try {
+      const { data } = await axios.get(
+        `${supabaseUrl}/rest/v1/users?role=eq.partner&order=created_at.desc`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      setPartners(data || []);
+    } catch (err) {
+      console.error("Lỗi tải danh sách đối tác:", err);
+      toast.error("Không thể tải danh sách đối tác!");
+    } finally {
+      setLoadingPartners(false);
+    }
+  }, [session?.access_token, supabaseUrl, anonKey]);
+
+  // Xử lý ticket
   const handleAcceptTicket = async () => {
     const { ticketId, subject, partnerId } = handleTicketModal;
     try {
@@ -254,28 +278,15 @@ const AdminDashboard = () => {
         }
       );
 
-      await notifyPartnerAndOtherAdmins(
-        partnerId,
-        subject,
-        null,
-        "",
-        "",
-        `Admin "${user.full_name}" đã nhận xử lý ticket: "${subject}"`,
-        "admin_accepted_ticket"
-      );
-
       toast.success("Đã nhận xử lý ticket!");
       fetchTickets();
-      fetchNotifications();
-    } catch (err) {
-      console.error("Lỗi nhận xử lý ticket:", err);
+    } catch {
       toast.error("Không thể nhận xử lý ticket!");
     } finally {
       setHandleTicketModal({ isOpen: false });
     }
   };
 
-  // Xử lý ticket: Từ chối
   const handleRejectTicket = async () => {
     const { ticketId, subject, partnerId } = handleTicketModal;
     try {
@@ -316,16 +327,13 @@ const AdminDashboard = () => {
 
       toast.success("Đã từ chối ticket!");
       fetchTickets();
-      fetchNotifications();
-    } catch (err) {
-      console.error("Lỗi từ chối ticket:", err);
+    } catch {
       toast.error("Không thể từ chối ticket!");
     } finally {
       setHandleTicketModal({ isOpen: false });
     }
   };
 
-  // Xử lý ticket: Hoàn thành
   const handleResolveTicket = async () => {
     const { ticketId, subject, partnerId } = handleTicketModal;
     try {
@@ -366,16 +374,14 @@ const AdminDashboard = () => {
 
       toast.success("Ticket đã được hoàn thành!");
       fetchTickets();
-      fetchNotifications();
-    } catch (err) {
-      console.error("Lỗi hoàn thành ticket:", err);
+    } catch {
       toast.error("Không thể hoàn thành ticket!");
     } finally {
       setHandleTicketModal({ isOpen: false });
     }
   };
 
-  // Các hàm xử lý tour
+  // Mở modal tour
   const openApproveTourModal = (tour) => {
     setApproveTourModal({
       isOpen: true,
@@ -385,6 +391,25 @@ const AdminDashboard = () => {
     });
   };
 
+  const openRejectTourModal = (tour) => {
+    setRejectTourModal({
+      isOpen: true,
+      tourId: tour.id,
+      tourName: tour.name,
+      partnerId: tour.partner_id,
+    });
+  };
+
+  const openDeleteTourModal = (tour) => {
+    setDeleteTourModal({
+      isOpen: true,
+      tourId: tour.id,
+      tourName: tour.name,
+      partnerId: tour.partner_id,
+    });
+  };
+
+  // Xác nhận tour
   const confirmApproveTour = async () => {
     const { tourId, tourName, partnerId } = approveTourModal;
     try {
@@ -412,9 +437,7 @@ const AdminDashboard = () => {
 
       toast.success("Đã duyệt tour và gửi thông báo!");
       fetchAllTours();
-      fetchNotifications();
-    } catch (err) {
-      console.error("Lỗi duyệt tour:", err);
+    } catch {
       toast.error("Không thể duyệt tour!");
     } finally {
       setApproveTourModal({
@@ -424,15 +447,6 @@ const AdminDashboard = () => {
         partnerId: null,
       });
     }
-  };
-
-  const openRejectTourModal = (tour) => {
-    setRejectTourModal({
-      isOpen: true,
-      tourId: tour.id,
-      tourName: tour.name,
-      partnerId: tour.partner_id,
-    });
   };
 
   const confirmRejectTour = async () => {
@@ -462,9 +476,7 @@ const AdminDashboard = () => {
 
       toast.success("Đã từ chối tour và gửi thông báo!");
       fetchAllTours();
-      fetchNotifications();
-    } catch (err) {
-      console.error("Lỗi từ chối tour:", err);
+    } catch {
       toast.error("Không thể từ chối tour!");
     } finally {
       setRejectTourModal({
@@ -474,15 +486,6 @@ const AdminDashboard = () => {
         partnerId: null,
       });
     }
-  };
-
-  const openDeleteTourModal = (tour) => {
-    setDeleteTourModal({
-      isOpen: true,
-      tourId: tour.id,
-      tourName: tour.name,
-      partnerId: tour.partner_id,
-    });
   };
 
   const confirmDeleteTour = async () => {
@@ -507,9 +510,7 @@ const AdminDashboard = () => {
 
       toast.success("Đã xóa tour và gửi thông báo!");
       fetchAllTours();
-      fetchNotifications();
-    } catch (err) {
-      console.error("Lỗi xóa tour:", err);
+    } catch {
       toast.error("Không thể xóa tour!");
     } finally {
       setDeleteTourModal({
@@ -567,8 +568,7 @@ const AdminDashboard = () => {
       );
       toast.success("Đã đánh dấu tất cả là đã đọc!");
       fetchNotifications();
-    } catch (err) {
-      console.error("Lỗi đánh dấu tất cả:", err);
+    } catch {
       toast.error("Không thể đánh dấu tất cả!");
     } finally {
       setMarkAllReadModal(false);
@@ -594,8 +594,7 @@ const AdminDashboard = () => {
       });
       toast.success("Đã xóa tất cả thông báo!");
       setNotifications([]);
-    } catch (err) {
-      console.error("Lỗi xóa tất cả:", err);
+    } catch {
       toast.error("Không thể xóa tất cả thông báo!");
     } finally {
       setClearAllModal(false);
@@ -619,11 +618,36 @@ const AdminDashboard = () => {
       );
       toast.success("Đã xóa thông báo!");
       fetchNotifications();
-    } catch (err) {
-      console.error("Lỗi xóa thông báo:", err);
+    } catch {
       toast.error("Không thể xóa thông báo!");
     } finally {
       setDeleteNotifModal({ isOpen: false, notifId: null });
+    }
+  };
+
+  // Helper
+  const getNotifTypeText = (type) => {
+    switch (type) {
+      case "tour_created":
+        return "Tour mới được tạo";
+      case "tour_paused":
+        return "Tour bị tạm dừng";
+      case "tour_reactivated":
+        return "Tour được kích hoạt lại";
+      case "tour_delete_request":
+        return "Yêu cầu xóa tour";
+      case "admin_approved_tour":
+        return "Admin đã duyệt tour";
+      case "admin_rejected_tour":
+        return "Admin đã từ chối tour";
+      case "admin_deleted_tour":
+        return "Admin đã xóa tour";
+      case "support_ticket_created":
+        return "Ticket hỗ trợ mới";
+      case "admin_accepted_ticket":
+        return "Admin nhận xử lý ticket";
+      default:
+        return "Thông báo hệ thống";
     }
   };
 
@@ -631,7 +655,14 @@ const AdminDashboard = () => {
     if (activeTab === "tours") fetchAllTours();
     if (activeTab === "notifications") fetchNotifications();
     if (activeTab === "tickets") fetchTickets();
-  }, [activeTab, fetchAllTours, fetchNotifications, fetchTickets]);
+    if (activeTab === "partners") fetchPartners();
+  }, [
+    activeTab,
+    fetchAllTours,
+    fetchNotifications,
+    fetchTickets,
+    fetchPartners,
+  ]);
 
   if (!user || user.role !== "admin") return <Navigate to="/login" replace />;
 
@@ -674,31 +705,6 @@ const AdminDashboard = () => {
     }
   };
 
-  const getNotifTypeText = (type) => {
-    switch (type) {
-      case "tour_created":
-        return "Tour mới được tạo";
-      case "tour_paused":
-        return "Tour bị tạm dừng";
-      case "tour_reactivated":
-        return "Tour được kích hoạt lại";
-      case "tour_delete_request":
-        return "Yêu cầu xóa tour";
-      case "admin_approved_tour":
-        return "Admin đã duyệt tour";
-      case "admin_rejected_tour":
-        return "Admin đã từ chối tour";
-      case "admin_deleted_tour":
-        return "Admin đã xóa tour";
-      case "support_ticket_created":
-        return "Ticket hỗ trợ mới";
-      case "admin_accepted_ticket":
-        return "Admin nhận xử lý ticket";
-      default:
-        return "Thông báo hệ thống";
-    }
-  };
-
   const unreadCount = notifications.filter((n) => n.status === "unread").length;
 
   return (
@@ -710,11 +716,12 @@ const AdminDashboard = () => {
           <div className="ad2-topbar-left">
             <h1 className="ad2-title">Bảng điều khiển Admin</h1>
             <p className="ad2-subtitle">
-              Quản lý tour, ticket và thông báo từ Partner
+              Quản lý tour, ticket, đối tác và thông báo
             </p>
           </div>
         </div>
 
+        {/* Tabs – ĐÃ BỎ TAB "Đánh giá" */}
         <div className="ad2-tabs">
           {[
             { id: "tours", label: "Quản lý Tours" },
@@ -723,11 +730,10 @@ const AdminDashboard = () => {
               label: `Thông báo${unreadCount > 0 ? ` (${unreadCount})` : ""}`,
             },
             { id: "tickets", label: "Ticket hỗ trợ" },
+            { id: "partners", label: "Đối tác" },
             { id: "orders", label: "Đơn hàng" },
             { id: "users", label: "Người dùng" },
-            { id: "partners", label: "Đối tác" },
             { id: "vouchers", label: "Voucher & KM" },
-            { id: "reviews", label: "Đánh giá" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -785,9 +791,9 @@ const AdminDashboard = () => {
                             alt={tour.name}
                             className="ad2-tour-thumbnail"
                             loading="lazy"
-                            onError={(e) => {
-                              e.currentTarget.src = placeholderImage;
-                            }}
+                            onError={(e) =>
+                              (e.currentTarget.src = placeholderImage)
+                            }
                           />
                         </td>
                         <td className="ad2-tour-name">{tour.name}</td>
@@ -940,7 +946,7 @@ const AdminDashboard = () => {
             </div>
           )}
 
-          {/* TAB TICKETS – ĐÃ CẬP NHẬT HOÀN CHỈNH NHẤT */}
+          {/* TAB TICKETS */}
           {activeTab === "tickets" && (
             <div className="ad2-table-wrapper">
               <div className="ad2-table-header">
@@ -964,11 +970,8 @@ const AdminDashboard = () => {
               ) : (
                 <div className="ad2-notifications-list">
                   {tickets.map((ticket) => {
-                    // Kiểm tra xem admin hiện tại có phải là người đang xử lý không
                     const isCurrentUserHandling =
                       ticket.assigned_admin_id === user.id;
-
-                    // Tên người xử lý cuối cùng
                     const handlerName =
                       ticket.status === "resolved"
                         ? ticket.closed_by === user.id
@@ -1004,7 +1007,6 @@ const AdminDashboard = () => {
                           {ticket.message}
                         </p>
 
-                        {/* Hiển thị trạng thái xử lý */}
                         {ticket.status === "in_progress" && handlerName && (
                           <small
                             style={{
@@ -1030,7 +1032,6 @@ const AdminDashboard = () => {
                           </small>
                         )}
 
-                        {/* NÚT HÀNH ĐỘNG */}
                         <div
                           style={{
                             marginTop: "12px",
@@ -1072,7 +1073,6 @@ const AdminDashboard = () => {
                             </>
                           )}
 
-                          {/* Chỉ hiện nút Hoàn thành nếu chính admin này đang xử lý */}
                           {ticket.status === "in_progress" &&
                             isCurrentUserHandling && (
                               <button
@@ -1100,17 +1100,73 @@ const AdminDashboard = () => {
             </div>
           )}
 
-          {/* Các tab placeholder */}
-          {["orders", "users", "partners", "vouchers", "reviews"].includes(
-            activeTab
-          ) && (
+          {/* TAB ĐỐI TÁC */}
+          {activeTab === "partners" && (
+            <div className="ad2-table-wrapper">
+              <div className="ad2-table-header">
+                <h3>Danh sách Đối tác ({partners.length})</h3>
+              </div>
+
+              {loadingPartners ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải danh sách đối tác...
+                </div>
+              ) : partners.length === 0 ? (
+                <div className="ad2-no-data">
+                  <p>Chưa có đối tác nào đăng ký.</p>
+                </div>
+              ) : (
+                <table className="ad2-tours-table">
+                  <thead>
+                    <tr>
+                      <th>Họ và tên</th>
+                      <th>Email</th>
+                      <th>Số điện thoại</th>
+                      <th>Địa chỉ</th>
+                      <th>Ngày đăng ký</th>
+                      <th>Trạng thái</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {partners.map((partner) => (
+                      <tr key={partner.user_id}>
+                        <td>
+                          <strong>{partner.full_name || "Chưa đặt tên"}</strong>
+                        </td>
+                        <td>{partner.email || "-"}</td>
+                        <td>{partner.phone_number || "-"}</td>
+                        <td>{partner.address || "-"}</td>
+                        <td>{formatDate(partner.created_at)}</td>
+                        <td>
+                          <span
+                            className={`ad2-status ${
+                              partner.is_active ? "confirmed" : "cancelled"
+                            }`}
+                          >
+                            {partner.is_active ? "Hoạt động" : "Tạm khóa"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* Các tab placeholder còn lại – KHÔNG CÓ "reviews" */}
+          {["orders", "users", "vouchers"].includes(activeTab) && (
             <div className="ad2-table-wrapper">
               <h3>
                 {activeTab === "orders" && "Đơn hàng"}
                 {activeTab === "users" && "Quản lý người dùng"}
-                {activeTab === "partners" && "Quản lý đối tác"}
                 {activeTab === "vouchers" && "Voucher & Khuyến mãi"}
-                {activeTab === "reviews" && "Đánh giá"}
               </h3>
               <p
                 style={{
@@ -1196,7 +1252,6 @@ const AdminDashboard = () => {
         onCancel={() => setClearAllModal(false)}
       />
 
-      {/* Modal xử lý ticket */}
       <ConfirmModal
         isOpen={handleTicketModal.isOpen}
         title={
