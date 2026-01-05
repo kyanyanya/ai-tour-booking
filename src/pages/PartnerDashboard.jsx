@@ -17,9 +17,11 @@ const PartnerDashboard = () => {
   const [tours, setTours] = useState([]);
   const [vouchers, setVouchers] = useState([]);
   const [notifications, setNotifications] = useState([]);
+  const [tickets, setTickets] = useState([]);
   const [loadingTours, setLoadingTours] = useState(false);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
+  const [loadingTickets, setLoadingTickets] = useState(false);
 
   // Form tour
   const [isTourFormOpen, setIsTourFormOpen] = useState(false);
@@ -28,6 +30,11 @@ const PartnerDashboard = () => {
   // Form voucher
   const [isVoucherFormOpen, setIsVoucherFormOpen] = useState(false);
   const [editingVoucher, setEditingVoucher] = useState(null);
+
+  // Form tạo ticket
+  const [isTicketFormOpen, setIsTicketFormOpen] = useState(false);
+  const [ticketSubject, setTicketSubject] = useState("");
+  const [ticketMessage, setTicketMessage] = useState("");
 
   // Modal tour
   const [toggleStatusModal, setToggleStatusModal] = useState({
@@ -64,7 +71,7 @@ const PartnerDashboard = () => {
   const placeholderImage =
     "https://images.unsplash.com/photo-1501785888041-af3ef285b470?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80";
 
-  // Gửi thông báo admin (chỉ dùng cho tour)
+  // Gửi thông báo cho tất cả admin
   const notifyAllAdmins = async (message, type, tourId = null) => {
     if (!session?.access_token) return;
 
@@ -102,8 +109,8 @@ const PartnerDashboard = () => {
           }
         );
       }
-    } catch (_err) {
-      console.error("Lỗi gửi thông báo đến Admin:", _err);
+    } catch (err) {
+      console.error("Lỗi gửi thông báo đến Admin:", err);
     }
   };
 
@@ -122,15 +129,15 @@ const PartnerDashboard = () => {
         }
       );
       setTours(data || []);
-    } catch (_err) {
-      console.error("Lỗi tải tour:", _err);
+    } catch (err) {
+      console.error("Lỗi tải tour:", err);
       toast.error("Lỗi khi tải danh sách tour!");
     } finally {
       setLoadingTours(false);
     }
   }, [user?.id, session?.access_token, supabaseUrl, anonKey]);
 
-  // Fetch vouchers (với thông tin tour nếu có)
+  // Fetch vouchers
   const fetchVouchers = useCallback(async () => {
     if (!user?.id || !session?.access_token) return;
     setLoadingVouchers(true);
@@ -145,8 +152,8 @@ const PartnerDashboard = () => {
         }
       );
       setVouchers(data || []);
-    } catch (_err) {
-      console.error("Lỗi tải voucher:", _err);
+    } catch (err) {
+      console.error("Lỗi tải voucher:", err);
       toast.error("Lỗi khi tải danh sách voucher!");
     } finally {
       setLoadingVouchers(false);
@@ -168,22 +175,115 @@ const PartnerDashboard = () => {
         }
       );
       setNotifications(data || []);
-    } catch (_err) {
-      console.error("Lỗi tải thông báo:", _err);
+    } catch (err) {
+      console.error("Lỗi tải thông báo:", err);
       toast.error("Lỗi khi tải thông báo!");
     } finally {
       setLoadingNotifs(false);
     }
   }, [user?.id, session?.access_token, supabaseUrl, anonKey]);
 
+  // Fetch tickets
+  const fetchTickets = useCallback(async () => {
+    if (!user?.id || !session?.access_token) return;
+    setLoadingTickets(true);
+    try {
+      const { data } = await axios.get(
+        `${supabaseUrl}/rest/v1/support_tickets?partner_id=eq.${user.id}&order=created_at.desc`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      setTickets(data || []);
+    } catch (err) {
+      console.error("Lỗi tải ticket:", err);
+      toast.error("Không thể tải danh sách ticket!");
+    } finally {
+      setLoadingTickets(false);
+    }
+  }, [user?.id, session?.access_token, supabaseUrl, anonKey]);
+
+  // ==== TẠO TICKET MỚI – ĐÃ CẬP NHẬT HOÀN CHỈNH ====
+  const handleCreateTicket = async () => {
+    if (!ticketSubject.trim() || !ticketMessage.trim()) {
+      toast.warn("Vui lòng nhập tiêu đề và nội dung ticket!");
+      return;
+    }
+
+    try {
+      // Tạo ticket trên Supabase
+      await axios.post(
+        `${supabaseUrl}/rest/v1/support_tickets`,
+        {
+          partner_id: user.id,
+          partner_name: user.full_name,
+          subject: ticketSubject,
+          message: ticketMessage,
+          status: "open",
+        },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      // Gửi thông báo cho tất cả admin
+      await notifyAllAdmins(
+        `Partner "${user.full_name}" đã tạo ticket hỗ trợ mới: "${ticketSubject}"`,
+        "support_ticket_created"
+      );
+
+      // Gửi thông báo xác nhận cho chính partner
+      await axios.post(
+        `${supabaseUrl}/rest/v1/partner_notifications`,
+        {
+          to_partner_id: user.id,
+          from_role: "system",
+          from_id: user.id,
+          message: `Ticket "${ticketSubject}" của bạn đã được gửi thành công !`,
+          type: "support_ticket_sent",
+          status: "unread",
+        },
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      toast.success("Gửi ticket hỗ trợ thành công!");
+
+      // Tự động chuyển sang tab Ticket và reload danh sách mới nhất
+      setActiveTab("tickets");
+      await fetchTickets();
+
+      // Đóng form và reset input
+      setIsTicketFormOpen(false);
+      setTicketSubject("");
+      setTicketMessage("");
+    } catch (err) {
+      console.error("Lỗi tạo ticket:", err);
+      toast.error("Không thể gửi ticket!");
+    }
+  };
+
   // Load data theo tab
   useEffect(() => {
     if (activeTab === "tours") fetchTours();
     if (activeTab === "vouchers") fetchVouchers();
     if (activeTab === "notifications") fetchNotifications();
-  }, [activeTab, fetchTours, fetchVouchers, fetchNotifications]);
+    if (activeTab === "tickets") fetchTickets();
+  }, [activeTab, fetchTours, fetchVouchers, fetchNotifications, fetchTickets]);
 
-  // Tour handlers
+  // Các handler khác
   const openEditTour = (tour) => {
     setEditingTour(tour);
     setIsTourFormOpen(true);
@@ -204,7 +304,6 @@ const PartnerDashboard = () => {
     );
   };
 
-  // Voucher handlers
   const openCreateVoucher = () => {
     setEditingVoucher(null);
     setIsVoucherFormOpen(true);
@@ -230,7 +329,6 @@ const PartnerDashboard = () => {
     );
   };
 
-  // Tạm dừng / Kích hoạt tour
   const openToggleStatusModal = (tour) => {
     setToggleStatusModal({
       isOpen: true,
@@ -274,7 +372,6 @@ const PartnerDashboard = () => {
     }
   };
 
-  // Xóa tour
   const openDeleteTourModal = (tour) => {
     setDeleteTourModal({
       isOpen: true,
@@ -301,7 +398,6 @@ const PartnerDashboard = () => {
     }
   };
 
-  // Xóa voucher
   const openDeleteVoucherModal = (voucher) => {
     setDeleteVoucherModal({
       isOpen: true,
@@ -328,7 +424,6 @@ const PartnerDashboard = () => {
     }
   };
 
-  // Xử lý thông báo
   const markAsRead = async (notifId) => {
     try {
       await axios.patch(
@@ -345,8 +440,8 @@ const PartnerDashboard = () => {
       setNotifications((prev) =>
         prev.map((n) => (n.id === notifId ? { ...n, status: "read" } : n))
       );
-    } catch (_err) {
-      console.error("Lỗi đánh dấu đã đọc:", _err);
+    } catch (err) {
+      console.error("Lỗi đánh dấu đã đọc:", err);
     }
   };
 
@@ -472,6 +567,36 @@ const PartnerDashboard = () => {
     }
   };
 
+  const getTicketStatusText = (status) => {
+    switch (status) {
+      case "open":
+        return "Mới";
+      case "in_progress":
+        return "Đang xử lý";
+      case "resolved":
+        return "Đã giải quyết";
+      case "rejected":
+        return "Bị từ chối";
+      default:
+        return status;
+    }
+  };
+
+  const getTicketStatusClass = (status) => {
+    switch (status) {
+      case "open":
+        return "pending";
+      case "in_progress":
+        return "confirmed";
+      case "resolved":
+        return "confirmed";
+      case "rejected":
+        return "cancelled";
+      default:
+        return "";
+    }
+  };
+
   const getNotifTypeText = (type) => {
     switch (type) {
       case "tour_approved":
@@ -480,10 +605,12 @@ const PartnerDashboard = () => {
         return "Tour bị từ chối";
       case "tour_deleted":
         return "Tour đã bị xóa";
-      case "tour_paused":
-        return "Tour bị tạm dừng";
-      case "tour_reactivated":
-        return "Tour được kích hoạt lại";
+      case "support_ticket_sent":
+        return "Ticket đã gửi";
+      case "support_ticket_in_progress":
+        return "Ticket đang được xử lý";
+      case "support_ticket_rejected":
+        return "Ticket bị từ chối";
       default:
         return "Thông báo hệ thống";
     }
@@ -498,7 +625,9 @@ const PartnerDashboard = () => {
         <div className="pd-topbar">
           <div className="pd-topbar-left">
             <h1 className="pd-title">Bảng điều khiển Đối tác</h1>
-            <p className="pd-subtitle">Quản lý tours, voucher và thông báo</p>
+            <p className="pd-subtitle">
+              Quản lý tours, voucher, ticket và thông báo
+            </p>
           </div>
           <div className="pd-topbar-right">
             {activeTab === "tours" && (
@@ -514,9 +643,18 @@ const PartnerDashboard = () => {
                 + Tạo voucher mới
               </button>
             )}
+            {activeTab === "tickets" && (
+              <button
+                className="pd-btn-create"
+                onClick={() => setIsTicketFormOpen(true)}
+              >
+                + Tạo ticket mới
+              </button>
+            )}
           </div>
         </div>
 
+        {/* Tabs – ĐÃ BỎ TAB "Phân tích" */}
         <div className="pd-tabs">
           {[
             { id: "overview", label: "Tổng quan" },
@@ -526,9 +664,9 @@ const PartnerDashboard = () => {
               id: "notifications",
               label: `Thông báo${unreadCount > 0 ? ` (${unreadCount})` : ""}`,
             },
+            { id: "tickets", label: "Ticket hỗ trợ" },
             { id: "orders", label: "Đơn hàng" },
             { id: "recentBookings", label: "Đặt chỗ gần đây" },
-            { id: "analytics", label: "Phân tích" },
             { id: "payments", label: "Thanh toán" },
             { id: "reviews", label: "Đánh giá" },
           ].map((tab) => (
@@ -543,7 +681,7 @@ const PartnerDashboard = () => {
         </div>
 
         <div className="pd-content">
-          {/* TAB TOUR */}
+          {/* TAB TOURS */}
           {activeTab === "tours" && (
             <div className="pd-table-wrapper">
               <div className="pd-table-header">
@@ -650,7 +788,7 @@ const PartnerDashboard = () => {
             </div>
           )}
 
-          {/* TAB VOUCHER – ĐÃ CẬP NHẬT ĐẦY ĐỦ THÔNG TIN MỚI */}
+          {/* TAB VOUCHERS */}
           {activeTab === "vouchers" && (
             <div className="pd-table-wrapper">
               <div className="pd-table-header">
@@ -738,7 +876,7 @@ const PartnerDashboard = () => {
             </div>
           )}
 
-          {/* TAB NOTIFICATIONS & OTHERS */}
+          {/* TAB NOTIFICATIONS */}
           {activeTab === "notifications" && (
             <div className="pd-table-wrapper">
               <div className="pd-table-header">
@@ -819,12 +957,76 @@ const PartnerDashboard = () => {
             </div>
           )}
 
-          {/* Các tab placeholder */}
+          {/* TAB TICKETS */}
+          {activeTab === "tickets" && (
+            <div className="pd-table-wrapper">
+              <div className="pd-table-header">
+                <h3>Ticket hỗ trợ của bạn ({tickets.length})</h3>
+              </div>
+
+              {loadingTickets ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải ticket...
+                </div>
+              ) : tickets.length === 0 ? (
+                <div className="pd-no-data">
+                  <p>Bạn chưa tạo ticket hỗ trợ nào.</p>
+                  <p>Nhấn nút "+ Tạo ticket mới" khi cần hỗ trợ từ Admin.</p>
+                </div>
+              ) : (
+                <div className="pd-notifications-list">
+                  {tickets.map((ticket) => (
+                    <div
+                      key={ticket.id}
+                      className={`pd-notification-item ${
+                        ticket.status === "open" ? "unread" : ""
+                      }`}
+                    >
+                      <div className="pd-notif-header">
+                        <strong>{ticket.subject}</strong>
+                        <span className="pd-notif-date">
+                          {formatDate(ticket.created_at)}
+                        </span>
+                        <span
+                          className={`pd-status ${getTicketStatusClass(
+                            ticket.status
+                          )}`}
+                          style={{ marginLeft: "12px", fontSize: "0.8rem" }}
+                        >
+                          {getTicketStatusText(ticket.status)}
+                        </span>
+                      </div>
+                      <p className="pd-notif-message">{ticket.message}</p>
+                      {ticket.assigned_admin_name && (
+                        <small
+                          style={{
+                            color: "#666",
+                            display: "block",
+                            marginTop: "8px",
+                          }}
+                        >
+                          Được xử lý bởi:{" "}
+                          <strong>{ticket.assigned_admin_name}</strong>
+                        </small>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Các tab placeholder – không có "analytics" */}
           {[
             "overview",
             "orders",
             "recentBookings",
-            "analytics",
             "payments",
             "reviews",
           ].includes(activeTab) && (
@@ -833,7 +1035,6 @@ const PartnerDashboard = () => {
                 {activeTab === "overview" && "Tổng quan"}
                 {activeTab === "orders" && "Đơn hàng"}
                 {activeTab === "recentBookings" && "Đặt chỗ gần đây"}
-                {activeTab === "analytics" && "Phân tích"}
                 {activeTab === "payments" && "Thanh toán"}
                 {activeTab === "reviews" && "Đánh giá"}
               </h3>
@@ -851,7 +1052,7 @@ const PartnerDashboard = () => {
         </div>
       </div>
 
-      {/* Form Tour */}
+      {/* Các form và modal */}
       {isTourFormOpen && (
         <div className="modal-backdrop" onClick={closeTourForm}>
           <div onClick={(e) => e.stopPropagation()}>
@@ -864,7 +1065,6 @@ const PartnerDashboard = () => {
         </div>
       )}
 
-      {/* Form Voucher */}
       {isVoucherFormOpen && (
         <div className="modal-backdrop" onClick={closeVoucherForm}>
           <div onClick={(e) => e.stopPropagation()}>
@@ -878,7 +1078,99 @@ const PartnerDashboard = () => {
         </div>
       )}
 
-      {/* Các modal */}
+      {isTicketFormOpen && (
+        <div
+          className="modal-backdrop"
+          onClick={() => setIsTicketFormOpen(false)}
+        >
+          <div
+            className="pd-table-wrapper"
+            style={{ width: "600px", maxWidth: "95%", padding: "32px" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: "24px" }}>
+              Tạo ticket hỗ trợ mới
+            </h3>
+            <div style={{ marginBottom: "16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "8px",
+                  fontWeight: "600",
+                }}
+              >
+                Tiêu đề ticket
+              </label>
+              <input
+                type="text"
+                value={ticketSubject}
+                onChange={(e) => setTicketSubject(e.target.value)}
+                placeholder="Ví dụ: Lỗi không thể tạo voucher, thanh toán bị lỗi..."
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: "8px",
+                  border: "1px solid #ddd",
+                  fontSize: "1rem",
+                }}
+              />
+            </div>
+            <div style={{ marginBottom: "24px" }}>
+              <label
+                style={{
+                  display: "block",
+                  marginBottom: "8px",
+                  fontWeight: "600",
+                }}
+              >
+                Nội dung chi tiết
+              </label>
+              <textarea
+                value={ticketMessage}
+                onChange={(e) => setTicketMessage(e.target.value)}
+                rows="8"
+                placeholder="Mô tả rõ ràng vấn đề bạn đang gặp phải, càng chi tiết càng tốt..."
+                style={{
+                  width: "100%",
+                  padding: "12px",
+                  borderRadius: "8px",
+                  border: "1px solid #ddd",
+                  resize: "vertical",
+                  fontSize: "1rem",
+                }}
+              />
+            </div>
+            <div
+              style={{
+                display: "flex",
+                gap: "12px",
+                justifyContent: "flex-end",
+              }}
+            >
+              <button
+                className="pd-btn secondary"
+                style={{ padding: "10px 20px" }}
+                onClick={() => {
+                  setIsTicketFormOpen(false);
+                  setTicketSubject("");
+                  setTicketMessage("");
+                }}
+              >
+                Hủy
+              </button>
+              <button
+                className="pd-btn-create"
+                style={{ padding: "10px 20px" }}
+                onClick={handleCreateTicket}
+              >
+                Gửi ticket
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Các ConfirmModal */}
       <ConfirmModal
         isOpen={toggleStatusModal.isOpen}
         title="Xác nhận thay đổi trạng thái"
