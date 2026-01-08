@@ -48,7 +48,7 @@ const Checkout = () => {
   const accessToken = localStorage.getItem("accessToken");
   const userId = localStorage.getItem("userId");
 
-  // Fetch điểm + voucher đã claim
+  // Fetch điểm + voucher + kiểm tra partner
   React.useEffect(() => {
     if (!bookingId || !tour || !originalTotalPrice || !userId || !accessToken) {
       toast.error("Thông tin thanh toán không hợp lệ!");
@@ -58,7 +58,7 @@ const Checkout = () => {
 
     const fetchUserData = async () => {
       try {
-        // Điểm thưởng
+        // 1. Lấy điểm thưởng
         const { data: userData } = await axios.get(
           `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}&select=reward_points`,
           {
@@ -68,12 +68,15 @@ const Checkout = () => {
             },
           }
         );
-        if (userData?.[0]?.reward_points)
+        if (userData?.[0]?.reward_points) {
           setRewardPoints(userData[0].reward_points);
+        }
 
-        // Voucher đã claim
+        // 2. Lấy voucher đã claim (thêm owner_id để kiểm tra partner)
         const { data: voucherData } = await axios.get(
-          `${SUPABASE_URL}/rest/v1/vouchers?claimed_by=cs.{${userId}}&select=id,code,discount_amount,tour_id,expires_at,start_date`,
+          `${SUPABASE_URL}/rest/v1/vouchers?` +
+            `claimed_by=cs.{${userId}}` +
+            `&select=id,code,discount_amount,tour_id,expires_at,start_date,owner_id`,
           {
             headers: {
               apikey: SUPABASE_ANON_KEY,
@@ -82,23 +85,59 @@ const Checkout = () => {
           }
         );
 
+        // 3. Lấy partner_id của tour hiện tại (nếu tour object chưa có)
+        let tourPartnerId = tour.partner_id;
+
+        if (!tourPartnerId) {
+          const { data: tourData } = await axios.get(
+            `${SUPABASE_URL}/rest/v1/tours?id=eq.${tour.id}&select=partner_id`,
+            {
+              headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+              },
+            }
+          );
+          tourPartnerId = tourData?.[0]?.partner_id;
+        }
+
         const now = new Date();
+
+        // 4. Lọc voucher hợp lệ + không cross-partner
         const validVouchers = (voucherData || []).filter((v) => {
+          // Kiểm tra thời gian hiệu lực
           const start = v.start_date ? new Date(v.start_date) : null;
           const end = v.expires_at ? new Date(v.expires_at) : null;
           const active = (!start || start <= now) && (!end || end > now);
-          const applicable = !v.tour_id || v.tour_id === tour.id;
+
+          let applicable = true;
+
+          // Nếu voucher giới hạn tour cụ thể
+          if (v.tour_id) {
+            applicable = v.tour_id === tour.id;
+          }
+
+          // Kiểm tra cross-partner
+          if (v.owner_id && tourPartnerId && v.owner_id !== tourPartnerId) {
+            applicable = false; // Voucher của partner khác → chặn
+            console.log(`Voucher ${v.code} bị chặn vì khác partner`);
+          }
+
           return active && applicable;
         });
 
         setAvailableVouchers(validVouchers);
+
+        // Debug (xem trong console)
+        console.log("Tour partner_id:", tourPartnerId);
+        console.log("Voucher khả dụng sau lọc partner:", validVouchers);
       } catch (err) {
-        console.error("Lỗi tải ưu đãi:", err);
+        console.error("Lỗi tải ưu đãi:", err.response?.data || err.message);
+        toast.error("Không thể tải voucher và điểm thưởng.");
       }
     };
 
     fetchUserData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     bookingId,
     tour,
@@ -147,7 +186,10 @@ const Checkout = () => {
   };
 
   const handlePointsChange = (val) => {
-    const pts = Math.min(parseInt(val) || 0, maxPointsCanUse);
+    const pts = Math.min(
+      parseInt(val) || 0,
+      Math.floor(originalTotalPrice / 700)
+    );
     if (pts > 0 && appliedVoucher) {
       toast.info("Đã bỏ voucher để dùng điểm.");
       setAppliedVoucher(null);
