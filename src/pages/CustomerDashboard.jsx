@@ -1,3 +1,4 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 // src/pages/CustomerDashboard.jsx
 import React, { useState, useEffect } from "react";
 import { useAuth } from "../auth/AuthContext.jsx";
@@ -7,6 +8,7 @@ import Header from "../components/Header";
 import Footer from "../components/Footer";
 import { toast } from "react-toastify";
 import ConfirmModal from "../components/modals/ConfirmModal";
+import RatingModal from "../components/modals/RatingModal";
 import "../styles/pages/CustomerDashboard.css";
 
 const CustomerDashboard = () => {
@@ -18,28 +20,58 @@ const CustomerDashboard = () => {
   const [myVouchers, setMyVouchers] = useState([]);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
 
-  // Chỉ dùng displayBookings để hiển thị và thao tác xóa/hủy
   const [displayBookings, setDisplayBookings] = useState([]);
   const [loadingBookings, setLoadingBookings] = useState(false);
 
-  // State cho modal hủy tour
+  // Danh sách đánh giá của user (dùng chung cho cả bookings và reviews)
+  const [myReviews, setMyReviews] = useState([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+
+  // Modal states
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedBookingId, setSelectedBookingId] = useState(null);
-
-  // State cho modal xóa tour đã hủy
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [bookingToDelete, setBookingToDelete] = useState(null);
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [selectedTourId, setSelectedTourId] = useState(null);
+  const [editingReview, setEditingReview] = useState(null);
+
+  // Modal xóa đánh giá
+  const [showDeleteReviewModal, setShowDeleteReviewModal] = useState(false);
+  const [reviewToDelete, setReviewToDelete] = useState(null);
 
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
   const accessToken = localStorage.getItem("accessToken");
   const userId = user?.id;
 
-  // Lấy điểm thưởng
+  // Hàm fetch my reviews chung (dùng cho cả bookings và reviews)
+  const fetchMyReviews = async () => {
+    if (!userId || !accessToken) return;
+    setLoadingReviews(true);
+    try {
+      const { data } = await axios.get(
+        `${SUPABASE_URL}/rest/v1/reviews?user_id=eq.${userId}&select=*,tours(id,name,image,location)&order=created_at.desc`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      setMyReviews(data || []);
+    } catch (err) {
+      console.error("Lỗi lấy đánh giá:", err);
+      setMyReviews([]);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  // Fetch reward points
   useEffect(() => {
     const fetchRewardPoints = async () => {
       if (!user || !accessToken || !userId) return;
-
       try {
         const { data } = await axios.get(
           `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}&select=reward_points`,
@@ -50,7 +82,6 @@ const CustomerDashboard = () => {
             },
           }
         );
-
         if (data && data.length > 0) {
           setRewardPoints(data[0].reward_points || 0);
         }
@@ -60,11 +91,10 @@ const CustomerDashboard = () => {
         setLoadingPoints(false);
       }
     };
-
     fetchRewardPoints();
   }, [user, userId, accessToken, SUPABASE_URL, SUPABASE_ANON_KEY]);
 
-  // Lấy voucher
+  // Fetch vouchers
   useEffect(() => {
     if (activeTab === "vouchers" && user && accessToken && userId) {
       const fetchMyVouchers = async () => {
@@ -79,7 +109,6 @@ const CustomerDashboard = () => {
               },
             }
           );
-
           setMyVouchers(data || []);
         } catch (err) {
           console.error("Lỗi lấy voucher:", err);
@@ -89,19 +118,18 @@ const CustomerDashboard = () => {
           setLoadingVouchers(false);
         }
       };
-
       fetchMyVouchers();
     }
   }, [activeTab, user, userId, accessToken, SUPABASE_URL, SUPABASE_ANON_KEY]);
 
-  // Lấy lịch sử đặt tour
+  // Fetch bookings + reviews khi vào tab bookings
   useEffect(() => {
     if (activeTab === "bookings" && user && accessToken && userId) {
       const fetchBookings = async () => {
         setLoadingBookings(true);
         try {
           const { data } = await axios.get(
-            `${SUPABASE_URL}/rest/v1/bookings?user_id=eq.${userId}&select=*,tours(name,image,location,duration_days)&order=created_at.desc`,
+            `${SUPABASE_URL}/rest/v1/bookings?user_id=eq.${userId}&select=*,tours(id,name,image,location,duration_days)&order=created_at.desc`,
             {
               headers: {
                 apikey: SUPABASE_ANON_KEY,
@@ -109,7 +137,6 @@ const CustomerDashboard = () => {
               },
             }
           );
-
           setDisplayBookings(data || []);
         } catch (err) {
           console.error("Lỗi lấy lịch sử đặt tour:", err);
@@ -121,6 +148,14 @@ const CustomerDashboard = () => {
       };
 
       fetchBookings();
+      fetchMyReviews(); // Luôn fetch reviews khi vào tab bookings để trạng thái chính xác
+    }
+  }, [activeTab, user, userId, accessToken, SUPABASE_URL, SUPABASE_ANON_KEY]);
+
+  // Fetch reviews khi vào tab reviews
+  useEffect(() => {
+    if (activeTab === "reviews" && user && accessToken && userId) {
+      fetchMyReviews();
     }
   }, [activeTab, user, userId, accessToken, SUPABASE_URL, SUPABASE_ANON_KEY]);
 
@@ -141,6 +176,8 @@ const CustomerDashboard = () => {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -178,26 +215,34 @@ const CustomerDashboard = () => {
     }
   };
 
-  const canCancel = (booking) => {
-    return (
-      booking.payment_status === "unpaid" && booking.status !== "cancelled"
-    );
+  // Kiểm tra đã đánh giá tour này chưa
+  const hasReviewed = (tourId) => {
+    return myReviews.some((review) => review.tour_id === tourId);
+  };
+
+  const canReview = (booking) => {
+    const tourId = booking.tours?.id;
+    return booking.payment_status === "paid" && tourId && !hasReviewed(tourId);
   };
 
   const canDelete = (booking) => {
     return booking.status === "cancelled";
   };
 
-  // Mở modal hủy tour
+  const canCancel = (booking) => {
+    return (
+      booking.payment_status === "unpaid" && booking.status !== "cancelled"
+    );
+  };
+
+  // Handlers
   const handleCancelBooking = (bookingId) => {
     setSelectedBookingId(bookingId);
     setShowCancelModal(true);
   };
 
-  // Xác nhận hủy tour
   const confirmCancelBooking = async () => {
     if (!selectedBookingId) return;
-
     try {
       await axios.patch(
         `${SUPABASE_URL}/rest/v1/bookings?id=eq.${selectedBookingId}`,
@@ -210,7 +255,6 @@ const CustomerDashboard = () => {
           },
         }
       );
-
       toast.success("Đã hủy tour thành công!");
       setDisplayBookings((prev) =>
         prev.map((b) =>
@@ -226,23 +270,58 @@ const CustomerDashboard = () => {
     }
   };
 
-  // Mở modal xóa tour đã hủy
   const handleDeleteCancelledBooking = (booking) => {
     setBookingToDelete(booking);
     setShowDeleteModal(true);
   };
 
-  // Xác nhận xóa khỏi danh sách hiển thị
   const confirmDeleteBooking = () => {
     if (!bookingToDelete) return;
-
     setDisplayBookings((prev) =>
       prev.filter((b) => b.id !== bookingToDelete.id)
     );
-
     toast.success("Đã xóa tour đã hủy khỏi danh sách!");
     setShowDeleteModal(false);
     setBookingToDelete(null);
+  };
+
+  const handleOpenRatingModal = (tourId, existingReview = null) => {
+    setSelectedTourId(tourId);
+    setEditingReview(existingReview);
+    setShowRatingModal(true);
+  };
+
+  const handleDeleteReview = (review) => {
+    setReviewToDelete(review);
+    setShowDeleteReviewModal(true);
+  };
+
+  const confirmDeleteReview = async () => {
+    if (!reviewToDelete) return;
+    try {
+      await axios.delete(
+        `${SUPABASE_URL}/rest/v1/reviews?id=eq.${reviewToDelete.id}`,
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${accessToken}`,
+          },
+        }
+      );
+      toast.success("Đã xóa đánh giá thành công!");
+      await fetchMyReviews();
+    } catch (err) {
+      console.error("Lỗi xóa đánh giá:", err);
+      toast.error("Không thể xóa đánh giá!");
+    } finally {
+      setShowDeleteReviewModal(false);
+      setReviewToDelete(null);
+    }
+  };
+
+  // Reload reviews sau khi tạo/sửa thành công
+  const handleReviewSuccess = async () => {
+    await fetchMyReviews();
   };
 
   return (
@@ -255,7 +334,7 @@ const CustomerDashboard = () => {
           <div className="cd2-topbar-left">
             <h1 className="cd2-title">Bảng điều khiển khách hàng</h1>
             <p className="cd2-subtitle">
-              Theo dõi đặt tour, điểm thưởng, voucher và gợi ý AI cá nhân hóa
+              Theo dõi đặt tour, điểm thưởng, voucher và đánh giá
             </p>
           </div>
           <div className="cd2-topbar-right">
@@ -298,7 +377,7 @@ const CustomerDashboard = () => {
             className={`cd2-tab ${activeTab === "reviews" ? "active" : ""}`}
             onClick={() => setActiveTab("reviews")}
           >
-            Đánh giá
+            Đánh giá của tôi
           </button>
           <button
             className={`cd2-tab ${activeTab === "profile" ? "active" : ""}`}
@@ -336,9 +415,9 @@ const CustomerDashboard = () => {
                 </div>
                 <div className="cd2-stat-card">
                   <div className="cd2-stat-icon reviews">Review</div>
-                  <div className="cd2-stat-value">0</div>
+                  <div className="cd2-stat-value">{myReviews.length}</div>
                   <div className="cd2-stat-label">Đánh giá đã gửi</div>
-                  <div className="cd2-stat-change up">Chưa có</div>
+                  <div className="cd2-stat-change up">Cập nhật</div>
                 </div>
               </div>
 
@@ -364,13 +443,6 @@ const CustomerDashboard = () => {
             <div className="cd2-table-wrapper">
               <div className="cd2-table-header">
                 <h3>Lịch sử đặt tour</h3>
-                <select className="cd2-period">
-                  <option>Tất cả</option>
-                  <option>Chưa thanh toán</option>
-                  <option>Đã thanh toán</option>
-                  <option>Đã hoàn thành</option>
-                  <option>Đã hủy</option>
-                </select>
               </div>
 
               {loadingBookings ? (
@@ -417,6 +489,7 @@ const CustomerDashboard = () => {
                   <tbody>
                     {displayBookings.map((booking) => {
                       const tour = booking.tours || {};
+                      const tourId = tour.id;
                       const paymentStatus = getPaymentStatus(
                         booking.payment_status
                       );
@@ -492,6 +565,23 @@ const CustomerDashboard = () => {
                                   Hủy tour
                                 </button>
                               </>
+                            ) : canReview(booking) ? (
+                              <button
+                                className="cd2-btn review"
+                                onClick={() => handleOpenRatingModal(tourId)}
+                              >
+                                Đánh giá
+                              </button>
+                            ) : hasReviewed(tourId) ? (
+                              <span
+                                style={{
+                                  color: "#10b981",
+                                  fontWeight: "600",
+                                  fontSize: "0.9rem",
+                                }}
+                              >
+                                Đã đánh giá ✓
+                              </span>
                             ) : canDelete(booking) ? (
                               <button
                                 className="cd2-btn delete"
@@ -514,6 +604,89 @@ const CustomerDashboard = () => {
                     })}
                   </tbody>
                 </table>
+              )}
+            </div>
+          )}
+
+          {/* Đánh giá của tôi */}
+          {activeTab === "reviews" && (
+            <div className="cd2-table-wrapper">
+              <h3>Đánh giá của tôi ({myReviews.length})</h3>
+              {loadingReviews ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải đánh giá...
+                </div>
+              ) : myReviews.length === 0 ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "80px",
+                    color: "#888",
+                  }}
+                >
+                  <p>Bạn chưa có đánh giá nào.</p>
+                  <p>Hãy thanh toán tour và đánh giá để chia sẻ trải nghiệm!</p>
+                </div>
+              ) : (
+                <div className="cd2-review-list">
+                  {myReviews.map((review) => {
+                    const tour = review.tours || {};
+                    return (
+                      <div key={review.id} className="cd2-review-item">
+                        <div className="cd2-review-tour">
+                          <img
+                            src={tour.image || "https://via.placeholder.com/80"}
+                            alt={tour.name}
+                            className="cd2-review-img"
+                          />
+                          <div>
+                            <h4>{tour.name}</h4>
+                            <small>{tour.location}</small>
+                          </div>
+                        </div>
+                        <div className="cd2-review-content">
+                          <div className="cd2-review-stars">
+                            {"★".repeat(review.rating) +
+                              "☆".repeat(5 - review.rating)}
+                          </div>
+                          <p>{review.comment || "(Không có bình luận)"}</p>
+                          <div className="cd2-review-meta">
+                            <small>
+                              <strong>Người đánh giá:</strong>{" "}
+                              {user.full_name || "Bạn"}
+                            </small>
+                            <br />
+                            <small>
+                              Đánh giá lúc: {formatDate(review.created_at)}
+                            </small>
+                          </div>
+                        </div>
+                        <div className="cd2-review-actions">
+                          <button
+                            className="cd2-btn review"
+                            onClick={() =>
+                              handleOpenRatingModal(review.tour_id, review)
+                            }
+                          >
+                            Sửa
+                          </button>
+                          <button
+                            className="cd2-btn delete"
+                            onClick={() => handleDeleteReview(review)}
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
           )}
@@ -610,19 +783,6 @@ const CustomerDashboard = () => {
             </div>
           )}
 
-          {/* Đánh giá */}
-          {activeTab === "reviews" && (
-            <div className="cd2-table-wrapper">
-              <h3>Đánh giá của bạn</h3>
-              <p
-                style={{ textAlign: "center", padding: "60px", color: "#888" }}
-              >
-                Chưa có đánh giá nào. Bạn sẽ có thể đánh giá sau khi hoàn thành
-                tour.
-              </p>
-            </div>
-          )}
-
           {/* Hồ sơ */}
           {activeTab === "profile" && (
             <div className="cd2-table-wrapper">
@@ -659,7 +819,7 @@ const CustomerDashboard = () => {
         </div>
       </div>
 
-      {/* Modal xác nhận hủy tour */}
+      {/* Modals */}
       <ConfirmModal
         isOpen={showCancelModal}
         title="Xác nhận hủy tour"
@@ -668,13 +828,31 @@ const CustomerDashboard = () => {
         onCancel={() => setShowCancelModal(false)}
       />
 
-      {/* Modal xác nhận xóa tour đã hủy */}
       <ConfirmModal
         isOpen={showDeleteModal}
         title="Xóa tour đã hủy"
-        message="Bạn có muốn xóa tour này khỏi danh sách không? Tour vẫn tồn tại trong hệ thống nhưng sẽ không hiển thị nữa."
+        message="Bạn có muốn xóa tour này khỏi danh sách không?"
         onConfirm={confirmDeleteBooking}
         onCancel={() => setShowDeleteModal(false)}
+      />
+
+      <ConfirmModal
+        isOpen={showDeleteReviewModal}
+        title="Xóa đánh giá"
+        message="Bạn có chắc chắn muốn xóa đánh giá này?"
+        onConfirm={confirmDeleteReview}
+        onCancel={() => setShowDeleteReviewModal(false)}
+      />
+
+      <RatingModal
+        isOpen={showRatingModal}
+        onClose={() => {
+          setShowRatingModal(false);
+          setEditingReview(null);
+        }}
+        tourId={selectedTourId}
+        existingReview={editingReview}
+        onSuccess={handleReviewSuccess}
       />
 
       <Footer />

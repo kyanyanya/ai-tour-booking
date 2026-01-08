@@ -55,7 +55,14 @@
   backdrop-filter: blur(6px);
   z-index: 2;
 }
+.tour-rating-value {
+  font-weight: 700;
+}
 
+.tour-review-count {
+  font-size: 0.8rem;
+  opacity: 0.9;
+}
 /* Badge "MỚI" */
 .tour-new-badge {
   position: absolute;

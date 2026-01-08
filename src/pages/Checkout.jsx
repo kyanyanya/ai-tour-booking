@@ -517,7 +517,7 @@ const Checkout = () => {
               {/* Nút hành động */}
               <div className="action-buttons">
                 <button className="btn-back" onClick={handleBackToContact}>
-                  ← Quay lại chỉnh sửa thông tin
+                  ← Quay lại
                 </button>
                 <button
                   className="btn-pay"

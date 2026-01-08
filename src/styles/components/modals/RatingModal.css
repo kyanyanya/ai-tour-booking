@@ -1,0 +1,98 @@
+/* src/styles/components/modals/RatingModal.css */
+.rm-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.rm-modal {
+  background: white;
+  padding: 32px 64px 32px 32px;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 500px;
+  text-align: center;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+}
+
+.rm-modal h2 {
+  margin-bottom: 24px;
+  color: #1e293b;
+  font-size: 1.5rem;
+}
+
+.rm-rating-stars {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.rm-star {
+  font-size: 2.5rem;
+  color: #ddd;
+  cursor: pointer;
+  transition: color 0.2s ease;
+}
+
+.rm-star.active {
+  color: #f59e0b;
+}
+
+.rm-comment {
+  width: 100%;
+  min-height: 120px;
+  padding: 16px;
+  border: 1.5px solid #d1d5db;
+  border-radius: 12px;
+  font-size: 1rem;
+  resize: vertical;
+  margin-bottom: 24px;
+}
+
+/* SỬA CHÍNH: Cân đối 2 nút đều về 2 bên */
+.rm-actions {
+  display: flex;
+  width: 100%;
+  justify-content: space-between; /* Đẩy 2 nút ra 2 bên */
+  align-items: center;
+}
+
+.rm-btn-cancel,
+.rm-btn-submit {
+  flex: 1; /* 2 nút chiếm đều chiều rộng */
+  padding: 14px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.rm-btn-cancel {
+  background: #f1f5f9;
+  color: #475569;
+  border: 1.5px solid #d1d5db;
+}
+
+.rm-btn-cancel:hover {
+  background: #e2e8f0;
+}
+
+.rm-btn-submit {
+  background: #4361ee;
+  color: white;
+  border: none;
+  margin-left: 16px; /* Khoảng cách giữa 2 nút */
+}
+
+.rm-btn-submit:hover {
+  background: #3651d4;
+}

@@ -10,11 +10,9 @@ const TourCard = ({ tour }) => {
     return price ? price.toLocaleString("vi-VN") + "đ" : "Liên hệ";
   };
 
-  // Placeholder ảnh đẹp nếu chưa có ảnh hoặc lỗi load
   const placeholderImage =
     "https://images.unsplash.com/photo-1501785888041-af3ef285b470?ixlib=rb-4.0.3&auto=format&fit=crop&w=800&q=80";
 
-  // Kiểm tra tour có phải "mới" không (tạo trong vòng 7 ngày gần nhất)
   const isNewTour = () => {
     if (!tour.created_at) return false;
     const createdDate = new Date(tour.created_at);
@@ -23,7 +21,6 @@ const TourCard = ({ tour }) => {
     return diffDays <= 7;
   };
 
-  // Xử lý click vào card hoặc button để xem chi tiết
   const handleViewDetail = (e) => {
     e.stopPropagation();
     if (tour.id) {
@@ -31,7 +28,6 @@ const TourCard = ({ tour }) => {
     }
   };
 
-  // Hiển thị duration
   const formatDuration = () => {
     if (tour.duration_days && tour.duration_nights) {
       return `${tour.duration_days} ngày ${tour.duration_nights} đêm`;
@@ -40,6 +36,9 @@ const TourCard = ({ tour }) => {
     }
     return "Liên hệ";
   };
+
+  // Hiển thị rating: nếu có đánh giá thì hiện average_rating (review_count), không thì ẩn
+  const hasRating = tour.review_count > 0;
 
   return (
     <div className="tour-card" onClick={handleViewDetail}>
@@ -54,15 +53,18 @@ const TourCard = ({ tour }) => {
           }}
         />
 
-        {/* Badge đánh giá (có thể thay bằng dữ liệu thật sau) */}
-        <div className="tour-rating-badge">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
-          </svg>
-          4.8
-        </div>
+        {/* Badge đánh giá thực tế */}
+        {hasRating && (
+          <div className="tour-rating-badge">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" />
+            </svg>
+            <span className="tour-rating-value">{tour.average_rating}</span>
+            <span className="tour-review-count">({tour.review_count})</span>
+          </div>
+        )}
 
-        {/* Badge "Mới" nếu tour mới tạo */}
+        {/* Badge "MỚI" */}
         {isNewTour() && <div className="tour-new-badge">MỚI</div>}
       </div>
 
