@@ -18,10 +18,23 @@ const PartnerDashboard = () => {
   const [vouchers, setVouchers] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [tickets, setTickets] = useState([]);
+  const [overviewData, setOverviewData] = useState({
+    totalTours: 0,
+    totalVouchers: 0,
+    totalBookings: 0,
+    totalRevenue: 0,
+    averageRating: 0,
+    totalReviews: 0,
+  });
+  const [reviews, setReviews] = useState([]);
+  const [orders, setOrders] = useState([]);
   const [loadingTours, setLoadingTours] = useState(false);
   const [loadingVouchers, setLoadingVouchers] = useState(false);
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [loadingTickets, setLoadingTickets] = useState(false);
+  const [loadingOverview, setLoadingOverview] = useState(false);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(false);
 
   // Form tour
   const [isTourFormOpen, setIsTourFormOpen] = useState(false);
@@ -206,6 +219,131 @@ const PartnerDashboard = () => {
     }
   }, [user?.id, session?.access_token, supabaseUrl, anonKey]);
 
+  // Fetch overview data
+  const fetchOverview = useCallback(async () => {
+    if (!user?.id || !session?.access_token) return;
+    setLoadingOverview(true);
+    try {
+      // Fetch total tours
+      const { data: toursData } = await axios.get(
+        `${supabaseUrl}/rest/v1/tours?partner_id=eq.${user.id}&select=count`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      const totalTours = toursData?.[0]?.count || 0;
+
+      // Fetch total vouchers
+      const { data: vouchersData } = await axios.get(
+        `${supabaseUrl}/rest/v1/vouchers?owner_id=eq.${user.id}&select=count`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      const totalVouchers = vouchersData?.[0]?.count || 0;
+
+      // Fetch total bookings and revenue
+      const { data: bookingsData } = await axios.get(
+        `${supabaseUrl}/rest/v1/bookings?select=total_price,tour:tours!inner(partner_id)&tour.partner_id=eq.${user.id}`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      const totalBookings = bookingsData?.length || 0;
+      const totalRevenue =
+        bookingsData?.reduce((sum, b) => sum + (b.total_price || 0), 0) || 0;
+
+      // Fetch average rating and total reviews from tours
+      const { data: toursStats } = await axios.get(
+        `${supabaseUrl}/rest/v1/tours?partner_id=eq.${user.id}&select=average_rating,review_count`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      const totalReviews =
+        toursStats?.reduce((sum, t) => sum + (t.review_count || 0), 0) || 0;
+      const avgRating =
+        toursStats?.length > 0
+          ? (
+              toursStats.reduce((sum, t) => sum + (t.average_rating || 0), 0) /
+              toursStats.length
+            ).toFixed(2)
+          : 0;
+
+      setOverviewData({
+        totalTours,
+        totalVouchers,
+        totalBookings,
+        totalRevenue,
+        averageRating: avgRating,
+        totalReviews,
+      });
+    } catch (err) {
+      console.error("Lỗi tải dữ liệu tổng quan:", err);
+      toast.error("Lỗi khi tải dữ liệu tổng quan!");
+    } finally {
+      setLoadingOverview(false);
+    }
+  }, [user?.id, session?.access_token, supabaseUrl, anonKey]);
+
+  // Fetch reviews (assuming reviews table exists with tour_id)
+  const fetchReviews = useCallback(async () => {
+    if (!user?.id || !session?.access_token) return;
+    setLoadingReviews(true);
+    try {
+      const { data } = await axios.get(
+        `${supabaseUrl}/rest/v1/reviews?select=*,tour:tours!inner(name,tour_code,image,partner_id)&tour.partner_id=eq.${user.id}&order=created_at.desc`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      setReviews(data || []);
+    } catch (err) {
+      console.error("Lỗi tải đánh giá:", err);
+      toast.error("Lỗi khi tải danh sách đánh giá!");
+    } finally {
+      setLoadingReviews(false);
+    }
+  }, [user?.id, session?.access_token, supabaseUrl, anonKey]);
+
+  // Fetch orders (bookings for partner's tours)
+  const fetchOrders = useCallback(async () => {
+    if (!user?.id || !session?.access_token) return;
+    setLoadingOrders(true);
+    try {
+      const { data } = await axios.get(
+        `${supabaseUrl}/rest/v1/bookings?tour_id.partner_id=eq.${user.id}&select=*,tour_id(name,tour_code,image)&order=created_at.desc`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      setOrders(data || []);
+    } catch (err) {
+      console.error("Lỗi tải đơn hàng:", err);
+      toast.error("Lỗi khi tải danh sách đơn hàng!");
+    } finally {
+      setLoadingOrders(false);
+    }
+  }, [user?.id, session?.access_token, supabaseUrl, anonKey]);
+
   // ==== TẠO TICKET MỚI – ĐÃ CẬP NHẬT HOÀN CHỈNH ====
   const handleCreateTicket = async () => {
     if (!ticketSubject.trim() || !ticketMessage.trim()) {
@@ -281,7 +419,19 @@ const PartnerDashboard = () => {
     if (activeTab === "vouchers") fetchVouchers();
     if (activeTab === "notifications") fetchNotifications();
     if (activeTab === "tickets") fetchTickets();
-  }, [activeTab, fetchTours, fetchVouchers, fetchNotifications, fetchTickets]);
+    if (activeTab === "overview") fetchOverview();
+    if (activeTab === "reviews") fetchReviews();
+    if (activeTab === "orders") fetchOrders();
+  }, [
+    activeTab,
+    fetchTours,
+    fetchVouchers,
+    fetchNotifications,
+    fetchTickets,
+    fetchOverview,
+    fetchReviews,
+    fetchOrders,
+  ]);
 
   // Các handler khác
   const openEditTour = (tour) => {
@@ -666,8 +816,6 @@ const PartnerDashboard = () => {
             },
             { id: "tickets", label: "Ticket hỗ trợ" },
             { id: "orders", label: "Đơn hàng" },
-            { id: "recentBookings", label: "Đặt chỗ gần đây" },
-            { id: "payments", label: "Thanh toán" },
             { id: "reviews", label: "Đánh giá" },
           ].map((tab) => (
             <button
@@ -1022,31 +1170,229 @@ const PartnerDashboard = () => {
             </div>
           )}
 
-          {/* Các tab placeholder – không có "analytics" */}
-          {[
-            "overview",
-            "orders",
-            "recentBookings",
-            "payments",
-            "reviews",
-          ].includes(activeTab) && (
+          {/* TAB OVERVIEW */}
+          {activeTab === "overview" && (
             <div className="pd-table-wrapper">
-              <h3>
-                {activeTab === "overview" && "Tổng quan"}
-                {activeTab === "orders" && "Đơn hàng"}
-                {activeTab === "recentBookings" && "Đặt chỗ gần đây"}
-                {activeTab === "payments" && "Thanh toán"}
-                {activeTab === "reviews" && "Đánh giá"}
-              </h3>
-              <p
-                style={{
-                  textAlign: "center",
-                  padding: "60px 0",
-                  color: "#888",
-                }}
-              >
-                Chưa có dữ liệu
-              </p>
+              <div className="pd-table-header">
+                <h3>Tổng quan</h3>
+              </div>
+
+              {loadingOverview ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải dữ liệu tổng quan...
+                </div>
+              ) : (
+                <div className="pd-stats-grid">
+                  <div className="pd-stat-card">
+                    <div className="pd-stat-icon bookings">Tour</div>
+                    <div className="pd-stat-value">
+                      {overviewData.totalTours}
+                    </div>
+                    <div className="pd-stat-label">Tổng số tour</div>
+                  </div>
+                  <div className="pd-stat-card">
+                    <div className="pd-stat-icon revenue">Voucher</div>
+                    <div className="pd-stat-value">
+                      {overviewData.totalVouchers}
+                    </div>
+                    <div className="pd-stat-label">Tổng số voucher</div>
+                  </div>
+                  <div className="pd-stat-card">
+                    <div className="pd-stat-icon customers">Đơn hàng</div>
+                    <div className="pd-stat-value">
+                      {overviewData.totalBookings}
+                    </div>
+                    <div className="pd-stat-label">Tổng số đơn hàng</div>
+                  </div>
+                  <div className="pd-stat-card">
+                    <div className="pd-stat-icon revenue">Doanh thu</div>
+                    <div className="pd-stat-value">
+                      {formatPrice(overviewData.totalRevenue)}
+                    </div>
+                    <div className="pd-stat-label">Tổng doanh thu</div>
+                  </div>
+                  <div className="pd-stat-card">
+                    <div className="pd-stat-icon reviews">★</div>
+                    <div className="pd-stat-value">
+                      {overviewData.averageRating}
+                    </div>
+                    <div className="pd-stat-label">Đánh giá trung bình</div>
+                  </div>
+                  <div className="pd-stat-card">
+                    <div className="pd-stat-icon reviews">Đánh giá</div>
+                    <div className="pd-stat-value">
+                      {overviewData.totalReviews}
+                    </div>
+                    <div className="pd-stat-label">Tổng số đánh giá</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* TAB ORDERS */}
+          {activeTab === "orders" && (
+            <div className="pd-table-wrapper">
+              <div className="pd-table-header">
+                <h3>Danh sách Đơn hàng ({orders.length})</h3>
+              </div>
+
+              {loadingOrders ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải đơn hàng...
+                </div>
+              ) : orders.length === 0 ? (
+                <div className="pd-no-data">
+                  <p>Chưa có đơn hàng nào.</p>
+                </div>
+              ) : (
+                <table className="pd-tours-table">
+                  <thead>
+                    <tr>
+                      <th>Mã Tour</th>
+                      <th>Tên Tour</th>
+                      <th>Thông tin khách hàng</th>
+                      <th>Số người</th>
+                      <th>Tổng giá</th>
+                      <th>Ngày đặt tour</th>
+                      <th>Trạng thái đơn</th>
+                      <th>Thanh toán</th>
+                      <th>Ngày tạo đơn</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {orders.map((order) => (
+                      <tr key={order.id}>
+                        <td>
+                          <strong>{order.tour_id?.tour_code || "-"}</strong>
+                        </td>
+                        <td>{order.tour_id?.name || "-"}</td>
+                        <td>
+                          <strong>{order.contact_name || "Chưa có tên"}</strong>
+                          <br />
+                          <small>ĐT: {order.contact_phone || "-"}</small>
+                          <br />
+                          <small>Email: {order.contact_email || "-"}</small>
+                        </td>
+                        <td>{order.number_of_people || "-"}</td>
+                        <td>{formatPrice(order.total_price)}</td>
+                        <td>{formatDate(order.booking_date)}</td>
+                        <td>
+                          <span
+                            className={`pd-status ${getStatusClass(
+                              order.status
+                            )}`}
+                          >
+                            {getStatusText(order.status)}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            className={`pd-status ${getStatusClass(
+                              order.payment_status
+                            )}`}
+                          >
+                            {getStatusText(order.payment_status)}
+                          </span>
+                        </td>
+                        <td>{formatDate(order.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* TAB REVIEWS */}
+          {activeTab === "reviews" && (
+            <div className="pd-table-wrapper">
+              <div className="pd-table-header">
+                <h3>Đánh giá từ khách hàng ({reviews.length})</h3>
+              </div>
+
+              {loadingReviews ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải đánh giá...
+                </div>
+              ) : reviews.length === 0 ? (
+                <div className="pd-no-data">
+                  <p>Chưa có đánh giá nào cho tour của bạn.</p>
+                </div>
+              ) : (
+                <table className="pd-tours-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: "100px" }}>Ảnh Tour</th>
+                      <th>Mã Tour</th>
+                      <th>Tên Tour</th>
+                      <th>Tên người đánh giá</th>
+                      <th>Điểm</th>
+                      <th>Nội dung đánh giá</th>
+                      <th>Ngày</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reviews.map((review) => (
+                      <tr key={review.id}>
+                        <td className="pd-tour-image-cell">
+                          <img
+                            src={review.tour?.image || placeholderImage}
+                            alt={review.tour?.name}
+                            className="pd-tour-thumbnail"
+                            onError={(e) =>
+                              (e.currentTarget.src = placeholderImage)
+                            }
+                          />
+                        </td>
+                        <td>
+                          <strong>{review.tour?.tour_code || "-"}</strong>
+                        </td>
+                        <td className="pd-tour-name">
+                          {review.tour?.name || "-"}
+                        </td>
+                        <td>
+                          <strong>
+                            {review.reviewer_name || "Khách ẩn danh"}
+                          </strong>
+                        </td>
+                        <td>
+                          <span
+                            style={{ fontSize: "1.5rem", color: "#f59e0b" }}
+                          >
+                            {"★".repeat(review.rating || 0)}
+                            {"☆".repeat(5 - (review.rating || 0))}
+                          </span>
+                        </td>
+                        <td style={{ maxWidth: "350px" }}>
+                          {review.comment || (
+                            <em style={{ color: "#aaa" }}>Không có nội dung</em>
+                          )}
+                        </td>
+                        <td>{formatDate(review.created_at)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
         </div>

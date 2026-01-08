@@ -6,15 +6,12 @@ import Footer from "../components/Footer";
 import { toast } from "react-toastify";
 import CryptoJS from "crypto-js";
 import axios from "axios";
-import ConfirmModal from "../components/modals/ConfirmModal"; // Thêm import
+import ConfirmModal from "../components/modals/ConfirmModal";
 import "../styles/pages/Checkout.css";
 
 const Checkout = () => {
   const [paymentMethod, setPaymentMethod] = React.useState("vnpay");
   const [loading, setLoading] = React.useState(false);
-  const [applying, setApplying] = React.useState(false);
-
-  // State cho ConfirmModal
   const [showConfirmModal, setShowConfirmModal] = React.useState(false);
 
   const navigate = useNavigate();
@@ -28,15 +25,19 @@ const Checkout = () => {
     bookingDate,
   } = location.state || {};
 
-  // State ưu đãi
+  // Ưu đãi
   const [rewardPoints, setRewardPoints] = React.useState(0);
   const [pointsToUse, setPointsToUse] = React.useState(0);
-  const [voucherCode, setVoucherCode] = React.useState("");
+  const [availableVouchers, setAvailableVouchers] = React.useState([]);
+  const [selectedVoucher, setSelectedVoucher] = React.useState(null);
   const [appliedVoucher, setAppliedVoucher] = React.useState(null);
+
+  // Dropdown voucher
+  const [isVoucherDropdownOpen, setIsVoucherDropdownOpen] =
+    React.useState(false);
 
   const [finalPrice, setFinalPrice] = React.useState(originalTotalPrice || 0);
 
-  // Env vars
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
   const vnp_TmnCode = import.meta.env.VITE_VNP_TMNCODE;
@@ -47,7 +48,7 @@ const Checkout = () => {
   const accessToken = localStorage.getItem("accessToken");
   const userId = localStorage.getItem("userId");
 
-  // Fetch điểm thưởng
+  // Fetch điểm + voucher đã claim
   React.useEffect(() => {
     if (!bookingId || !tour || !originalTotalPrice || !userId || !accessToken) {
       toast.error("Thông tin thanh toán không hợp lệ!");
@@ -55,9 +56,10 @@ const Checkout = () => {
       return;
     }
 
-    const fetchRewardPoints = async () => {
+    const fetchUserData = async () => {
       try {
-        const { data } = await axios.get(
+        // Điểm thưởng
+        const { data: userData } = await axios.get(
           `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}&select=reward_points`,
           {
             headers: {
@@ -66,118 +68,94 @@ const Checkout = () => {
             },
           }
         );
-        if (data && data.length > 0) {
-          setRewardPoints(data[0].reward_points || 0);
-        }
+        if (userData?.[0]?.reward_points)
+          setRewardPoints(userData[0].reward_points);
+
+        // Voucher đã claim
+        const { data: voucherData } = await axios.get(
+          `${SUPABASE_URL}/rest/v1/vouchers?claimed_by=cs.{${userId}}&select=id,code,discount_amount,tour_id,expires_at,start_date`,
+          {
+            headers: {
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+
+        const now = new Date();
+        const validVouchers = (voucherData || []).filter((v) => {
+          const start = v.start_date ? new Date(v.start_date) : null;
+          const end = v.expires_at ? new Date(v.expires_at) : null;
+          const active = (!start || start <= now) && (!end || end > now);
+          const applicable = !v.tour_id || v.tour_id === tour.id;
+          return active && applicable;
+        });
+
+        setAvailableVouchers(validVouchers);
       } catch (err) {
-        console.error("Lỗi lấy điểm thưởng:", err);
+        console.error("Lỗi tải ưu đãi:", err);
       }
     };
 
-    fetchRewardPoints();
+    fetchUserData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookingId, tour, originalTotalPrice, navigate, userId, accessToken]);
+  }, [
+    bookingId,
+    tour,
+    originalTotalPrice,
+    navigate,
+    userId,
+    accessToken,
+    tour.id,
+  ]);
 
   // Tính giá cuối
   React.useEffect(() => {
-    let discount = 0;
-
-    if (appliedVoucher) {
-      discount = appliedVoucher.discount_amount || 0;
-    } else if (pointsToUse > 0) {
-      discount = pointsToUse * 700;
-    }
-
-    const totalDiscount = Math.min(discount, originalTotalPrice);
-    setFinalPrice(originalTotalPrice - totalDiscount);
+    let discount = appliedVoucher
+      ? appliedVoucher.discount_amount || 0
+      : pointsToUse * 700;
+    discount = Math.min(discount, originalTotalPrice);
+    setFinalPrice(originalTotalPrice - discount);
   }, [pointsToUse, appliedVoucher, originalTotalPrice]);
 
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat("vi-VN", {
+  const formatPrice = (price) =>
+    new Intl.NumberFormat("vi-VN", {
       style: "currency",
       currency: "VND",
     }).format(price);
-  };
 
-  // Áp dụng voucher
-  const handleApplyVoucher = async () => {
-    if (!voucherCode.trim()) {
-      toast.error("Vui lòng nhập mã voucher!");
-      return;
+  const handleSelectVoucher = (voucher) => {
+    if (pointsToUse > 0) {
+      toast.info("Đã bỏ điểm thưởng để dùng voucher.");
+      setPointsToUse(0);
     }
-
-    setApplying(true);
-    try {
-      const { data: vouchers } = await axios.get(
-        `${SUPABASE_URL}/rest/v1/vouchers?code=eq.${voucherCode
-          .trim()
-          .toUpperCase()}`,
-        {
-          headers: {
-            apikey: SUPABASE_ANON_KEY,
-            Authorization: `Bearer ${accessToken}`,
-          },
-        }
-      );
-
-      if (!vouchers || vouchers.length === 0) {
-        toast.error("Mã voucher không tồn tại hoặc không hợp lệ!");
-        return;
-      }
-
-      const voucher = vouchers[0];
-
-      if (voucher.expires_at && new Date(voucher.expires_at) < new Date()) {
-        toast.error("Voucher đã hết hạn!");
-        return;
-      }
-
-      if (voucher.tour_id && voucher.tour_id !== tour.id) {
-        toast.error("Voucher này chỉ áp dụng cho tour khác!");
-        return;
-      }
-
-      if (pointsToUse > 0) {
-        toast.info("Đã xóa điểm thưởng để áp dụng voucher.");
-        setPointsToUse(0);
-      }
-
-      setAppliedVoucher({
-        code: voucher.code,
-        discount_amount: voucher.discount_amount,
-      });
-
-      toast.success(
-        `Áp dụng voucher ${voucher.code} thành công! Giảm ${formatPrice(
-          voucher.discount_amount
-        )}`
-      );
-      setVoucherCode("");
-    } catch (err) {
-      console.error("Lỗi áp dụng voucher:", err);
-      toast.error("Không thể kiểm tra voucher. Vui lòng thử lại.");
-    } finally {
-      setApplying(false);
-    }
+    setSelectedVoucher(voucher);
+    setAppliedVoucher({
+      code: voucher.code,
+      discount_amount: voucher.discount_amount,
+    });
+    setIsVoucherDropdownOpen(false);
+    toast.success(
+      `Đã chọn ${voucher.code} – Giảm ${formatPrice(voucher.discount_amount)}`
+    );
   };
 
   const handleRemoveVoucher = () => {
+    setSelectedVoucher(null);
     setAppliedVoucher(null);
-    toast.info("Đã xóa voucher – bạn có thể dùng điểm thưởng.");
+    toast.info("Đã bỏ voucher");
   };
 
-  const handlePointsChange = (value) => {
-    const newPoints = Math.min(parseInt(value) || 0, maxPointsCanUse);
-
-    if (newPoints > 0 && appliedVoucher) {
-      toast.info("Đã xóa voucher để sử dụng điểm thưởng.");
+  const handlePointsChange = (val) => {
+    const pts = Math.min(parseInt(val) || 0, maxPointsCanUse);
+    if (pts > 0 && appliedVoucher) {
+      toast.info("Đã bỏ voucher để dùng điểm.");
       setAppliedVoucher(null);
+      setSelectedVoucher(null);
     }
-
-    setPointsToUse(newPoints);
+    setPointsToUse(pts);
   };
 
-  // Quay lại trang ContactInfo để chỉnh sửa thông tin
   const handleBackToContact = () => {
     navigate("/checkout/contact", {
       state: {
@@ -190,39 +168,30 @@ const Checkout = () => {
     });
   };
 
-  // Mở modal confirm trước khi thanh toán
-  const handleConfirmAndPay = () => {
-    setShowConfirmModal(true);
-  };
+  const handleConfirmAndPay = () => setShowConfirmModal(true);
 
-  // Hàm thực hiện thanh toán (gọi sau khi confirm)
   const handlePay = async () => {
     setShowConfirmModal(false);
-    if (paymentMethod !== "vnpay") {
-      toast.info("Vui lòng chọn phương thức VNPay!");
-      return;
-    }
+    if (paymentMethod !== "vnpay") return toast.info("Vui lòng chọn VNPay!");
 
     setLoading(true);
-
     try {
       const date = new Date();
       const createDate =
         date.getFullYear().toString() +
-        (date.getMonth() + 1).toString().padStart(2, "0") +
-        date.getDate().toString().padStart(2, "0") +
-        date.getHours().toString().padStart(2, "0") +
-        date.getMinutes().toString().padStart(2, "0") +
-        date.getSeconds().toString().padStart(2, "0");
+        String(date.getMonth() + 1).padStart(2, "0") +
+        String(date.getDate()).padStart(2, "0") +
+        String(date.getHours()).padStart(2, "0") +
+        String(date.getMinutes()).padStart(2, "0") +
+        String(date.getSeconds()).padStart(2, "0");
 
-      const extraParams = new URLSearchParams();
-      if (pointsToUse > 0) extraParams.append("used_points", pointsToUse);
-      if (appliedVoucher)
-        extraParams.append("used_voucher", appliedVoucher.code);
+      const extra = new URLSearchParams();
+      if (pointsToUse > 0) extra.append("used_points", pointsToUse);
+      if (appliedVoucher) extra.append("used_voucher", appliedVoucher.code);
 
-      const returnUrlWithParams = `${vnp_ReturnUrl}?${extraParams.toString()}`;
+      const returnUrl = `${vnp_ReturnUrl}?${extra.toString()}`;
 
-      let vnp_Params = {
+      const params = {
         vnp_Version: "2.1.0",
         vnp_Command: "pay",
         vnp_TmnCode: vnp_TmnCode,
@@ -232,34 +201,27 @@ const Checkout = () => {
         vnp_OrderInfo: `Thanh toan tour ${tour.name} - Ma: ${bookingId}`,
         vnp_OrderType: "other",
         vnp_Amount: Math.round(finalPrice * 100),
-        vnp_ReturnUrl: returnUrlWithParams,
+        vnp_ReturnUrl: returnUrl,
         vnp_IpAddr: "127.0.0.1",
         vnp_CreateDate: createDate,
       };
 
-      const sortedParams = Object.keys(vnp_Params)
+      const sorted = Object.keys(params)
         .sort()
-        .reduce((obj, key) => {
-          obj[key] = vnp_Params[key];
-          return obj;
-        }, {});
-
-      const signData = new URLSearchParams(sortedParams).toString();
+        .reduce((o, k) => ({ ...o, [k]: params[k] }), {});
+      const signData = new URLSearchParams(sorted).toString();
       const hmac = CryptoJS.HmacSHA512(signData, vnp_HashSecret).toString(
         CryptoJS.enc.Hex
       );
-
-      const finalUrl = `${vnp_Url}?${signData}&vnp_SecureHash=${hmac}`;
-      window.location.assign(finalUrl);
+      window.location.assign(`${vnp_Url}?${signData}&vnp_SecureHash=${hmac}`);
     } catch (err) {
-      console.error("Lỗi thanh toán VNPay:", err);
-      toast.error("Không thể kết nối cổng thanh toán. Vui lòng thử lại!");
+      console.error(err);
+      toast.error("Lỗi kết nối cổng thanh toán!");
       setLoading(false);
     }
   };
 
   if (!tour) return null;
-
   const maxPointsCanUse = Math.floor(originalTotalPrice / 700);
 
   return (
@@ -306,9 +268,8 @@ const Checkout = () => {
                     fontSize: "0.95rem",
                   }}
                 >
-                  <strong>Lưu ý:</strong> Bạn chỉ được chọn <strong>MỘT</strong>{" "}
-                  trong hai cách giảm giá: dùng điểm thưởng{" "}
-                  <strong>HOẶC</strong> dùng voucher.
+                  <strong>Lưu ý:</strong> Chỉ được chọn <strong>MỘT</strong>{" "}
+                  hình thức giảm giá: điểm thưởng <strong>HOẶC</strong> voucher.
                 </div>
 
                 {/* Điểm thưởng */}
@@ -342,7 +303,7 @@ const Checkout = () => {
                       max={maxPointsCanUse}
                       value={pointsToUse}
                       onChange={(e) => handlePointsChange(e.target.value)}
-                      placeholder="Số điểm muốn dùng"
+                      placeholder="Số điểm dùng"
                       style={{
                         width: "120px",
                         padding: "8px",
@@ -353,65 +314,107 @@ const Checkout = () => {
                     />
                     <span>→ Giảm {formatPrice(pointsToUse * 700)}</span>
                   </div>
-                  {pointsToUse > 0 && pointsToUse <= rewardPoints && (
-                    <p
-                      style={{
-                        fontSize: "0.85rem",
-                        color: "#4361ee",
-                        marginTop: "6px",
-                      }}
-                    >
-                      Sau khi dùng: {rewardPoints - pointsToUse} điểm còn lại
-                    </p>
-                  )}
                 </div>
 
-                {/* Voucher */}
-                <div
-                  style={{
-                    margin: "20px 0",
-                    padding: "16px",
-                    background: "#fff8e1",
-                    borderRadius: "12px",
-                    opacity: pointsToUse > 0 ? 0.6 : 1,
-                  }}
-                >
+                {/* Dropdown Voucher */}
+                <div style={{ margin: "20px 0", position: "relative" }}>
                   <p style={{ fontWeight: "600", marginBottom: "8px" }}>
-                    Áp dụng mã giảm giá
+                    Chọn voucher
                   </p>
-                  <div style={{ display: "flex", gap: "8px" }}>
-                    <input
-                      type="text"
-                      value={voucherCode}
-                      onChange={(e) =>
-                        setVoucherCode(e.target.value.toUpperCase())
-                      }
-                      placeholder="Nhập mã voucher"
+
+                  <div
+                    onClick={() =>
+                      pointsToUse === 0 &&
+                      setIsVoucherDropdownOpen(!isVoucherDropdownOpen)
+                    }
+                    style={{
+                      padding: "14px 16px",
+                      border: "2px solid",
+                      borderColor: selectedVoucher ? "#4361ee" : "#ddd",
+                      borderRadius: "12px",
+                      background: "#fff",
+                      cursor: pointsToUse > 0 ? "not-allowed" : "pointer",
+                      opacity: pointsToUse > 0 ? 0.6 : 1,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      fontWeight: selectedVoucher ? "600" : "normal",
+                    }}
+                  >
+                    <span>
+                      {selectedVoucher
+                        ? `${selectedVoucher.code} → Giảm ${formatPrice(
+                            selectedVoucher.discount_amount
+                          )}`
+                        : "Nhấn để chọn voucher..."}
+                    </span>
+                    <span style={{ fontSize: "1.2rem" }}>▼</span>
+                  </div>
+
+                  {isVoucherDropdownOpen && availableVouchers.length > 0 && (
+                    <div
                       style={{
-                        flex: 1,
-                        padding: "8px",
-                        borderRadius: "8px",
-                        border: "1px solid #ccc",
-                      }}
-                      disabled={applying || pointsToUse > 0}
-                    />
-                    <button
-                      onClick={handleApplyVoucher}
-                      disabled={
-                        applying || !voucherCode.trim() || pointsToUse > 0
-                      }
-                      style={{
-                        padding: "8px 16px",
-                        background: "#4361ee",
-                        color: "white",
-                        border: "none",
-                        borderRadius: "8px",
-                        cursor: "pointer",
+                        position: "absolute",
+                        top: "100%",
+                        left: 0,
+                        right: 0,
+                        background: "white",
+                        border: "1px solid #ddd",
+                        borderRadius: "12px",
+                        marginTop: "6px",
+                        maxHeight: "280px",
+                        overflowY: "auto",
+                        boxShadow: "0 10px 25px rgba(0,0,0,0.1)",
+                        zIndex: 10,
                       }}
                     >
-                      {applying ? "..." : "Áp dụng"}
-                    </button>
-                  </div>
+                      {availableVouchers.map((v) => (
+                        <div
+                          key={v.id}
+                          onClick={() => handleSelectVoucher(v)}
+                          style={{
+                            padding: "14px 16px",
+                            borderBottom: "1px solid #eee",
+                            cursor: "pointer",
+                            background:
+                              selectedVoucher?.id === v.id
+                                ? "#f0f7ff"
+                                : "white",
+                            transition: "background 0.2s",
+                          }}
+                          onMouseOver={(e) =>
+                            (e.currentTarget.style.background = "#f8faff")
+                          }
+                          onMouseOut={(e) =>
+                            (e.currentTarget.style.background =
+                              selectedVoucher?.id === v.id
+                                ? "#f0f7ff"
+                                : "white")
+                          }
+                        >
+                          <div
+                            style={{
+                              display: "flex",
+                              justifyContent: "space-between",
+                              alignItems: "center",
+                            }}
+                          >
+                            <strong>{v.code}</strong>
+                            <span
+                              style={{ color: "#dc2626", fontWeight: "600" }}
+                            >
+                              -{formatPrice(v.discount_amount)}
+                            </span>
+                          </div>
+                          {v.tour_id && (
+                            <small style={{ color: "#666" }}>
+                              Chỉ áp dụng cho tour cụ thể
+                            </small>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {appliedVoucher && (
                     <div
@@ -419,24 +422,25 @@ const Checkout = () => {
                         marginTop: "12px",
                         padding: "10px",
                         background: "#d4edda",
-                        borderRadius: "8px",
+                        borderRadius: "10px",
+                        textAlign: "center",
                       }}
                     >
                       <p style={{ margin: "0 0 8px 0" }}>
-                        Đã áp dụng: <strong>{appliedVoucher.code}</strong> →
-                        Giảm {formatPrice(appliedVoucher.discount_amount)}
+                        Đang dùng: <strong>{appliedVoucher.code}</strong> → Giảm{" "}
+                        {formatPrice(appliedVoucher.discount_amount)}
                       </p>
                       <button
                         onClick={handleRemoveVoucher}
                         style={{
-                          fontSize: "0.85rem",
                           color: "#dc2626",
                           background: "none",
                           border: "none",
+                          fontSize: "0.85rem",
                           cursor: "pointer",
                         }}
                       >
-                        Xóa
+                        Bỏ áp dụng
                       </button>
                     </div>
                   )}
@@ -466,7 +470,7 @@ const Checkout = () => {
                   }}
                 >
                   <p>
-                    <strong>Thẻ Test NCB (Dành cho Demo):</strong>
+                    <strong>Thẻ Test NCB (Demo):</strong>
                   </p>
                   <p>Số thẻ: 9704198526191432198</p>
                   <p>Tên: NGUYEN VAN A | Ngày: 07/15 | OTP: 123456</p>
@@ -514,7 +518,6 @@ const Checkout = () => {
                 </div>
               </div>
 
-              {/* Nút hành động */}
               <div className="action-buttons">
                 <button className="btn-back" onClick={handleBackToContact}>
                   ← Quay lại
@@ -536,7 +539,6 @@ const Checkout = () => {
         </div>
       </div>
 
-      {/* Confirm Modal */}
       <ConfirmModal
         isOpen={showConfirmModal}
         title="Xác nhận thanh toán"

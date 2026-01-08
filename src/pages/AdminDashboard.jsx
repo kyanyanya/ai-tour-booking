@@ -11,7 +11,7 @@ import "../styles/pages/AdminDashboard.css";
 
 const AdminDashboard = () => {
   const { user, session } = useAuth();
-  const [activeTab, setActiveTab] = useState("tours");
+  const [activeTab, setActiveTab] = useState("overview");
   const [tours, setTours] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [tickets, setTickets] = useState([]);
@@ -20,6 +20,13 @@ const AdminDashboard = () => {
   const [loadingNotifs, setLoadingNotifs] = useState(false);
   const [loadingTickets, setLoadingTickets] = useState(false);
   const [loadingPartners, setLoadingPartners] = useState(false);
+
+  // Dữ liệu Tổng quan
+  const [totalPartners, setTotalPartners] = useState(0);
+  const [totalTours, setTotalTours] = useState(0);
+  const [totalReviews, setTotalReviews] = useState(0);
+  const [averageRating, setAverageRating] = useState("0.0");
+  const [loadingOverview, setLoadingOverview] = useState(true);
 
   // Modal tour
   const [approveTourModal, setApproveTourModal] = useState({
@@ -55,7 +62,7 @@ const AdminDashboard = () => {
     ticketId: null,
     subject: "",
     partnerId: null,
-    action: "", // "accept", "reject", "resolve"
+    action: "",
   });
 
   const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
@@ -113,6 +120,7 @@ const AdminDashboard = () => {
               apikey: anonKey,
               Authorization: `Bearer ${session.access_token}`,
               "Content-Type": "application/json",
+              Prefer: "return=representation",
             },
           }
         );
@@ -141,6 +149,7 @@ const AdminDashboard = () => {
                 apikey: anonKey,
                 Authorization: `Bearer ${session.access_token}`,
                 "Content-Type": "application/json",
+                Prefer: "return=representation",
               },
             }
           );
@@ -150,6 +159,90 @@ const AdminDashboard = () => {
       console.error("Lỗi gửi thông báo cho admin khác:", err);
     }
   };
+
+  // === FETCH DỮ LIỆU TỔNG QUAN ===
+  const fetchOverviewData = useCallback(async () => {
+    if (!session?.access_token) return;
+    setLoadingOverview(true);
+    try {
+      // 1. Số đối tác - Query bảng users với filter role=partner
+      const { data: partnersData } = await axios.get(
+        `${supabaseUrl}/rest/v1/users?role=eq.partner&select=user_id`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+            Prefer: "return=representation",
+          },
+        }
+      );
+      console.log("Partners data:", partnersData);
+      setTotalPartners(partnersData?.length || 0);
+
+      // 2. Tổng số tour
+      const { data: toursData } = await axios.get(
+        `${supabaseUrl}/rest/v1/tours?select=id`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      setTotalTours(toursData?.length || 0);
+
+      // 3. Tổng số đánh giá
+      const { data: reviewsData } = await axios.get(
+        `${supabaseUrl}/rest/v1/reviews?select=id`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+      setTotalReviews(reviewsData?.length || 0);
+
+      // 4. Điểm trung bình - chỉ tính tour đã duyệt và có rating > 0
+      const { data: toursStats } = await axios.get(
+        `${supabaseUrl}/rest/v1/tours?status=eq.APPROVED&select=average_rating`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
+
+      if (toursStats && toursStats.length > 0) {
+        const validRatings = toursStats.filter((t) => t.average_rating > 0);
+        if (validRatings.length > 0) {
+          const avg =
+            validRatings.reduce((sum, t) => sum + t.average_rating, 0) /
+            validRatings.length;
+          setAverageRating(avg.toFixed(1));
+        } else {
+          setAverageRating("0.0");
+        }
+      } else {
+        setAverageRating("0.0");
+      }
+    } catch (err) {
+      console.error("Lỗi tải dữ liệu tổng quan:", err);
+      console.error("Status:", err.response?.status);
+      console.error("Message:", err.response?.data);
+
+      if (err.response?.status === 406) {
+        toast.error("Lỗi: Thiếu header Prefer");
+      } else if (err.response?.status === 401) {
+        toast.error("Lỗi: Token hết hạn");
+      } else {
+        toast.error(`Không thể tải dữ liệu tổng quan!`);
+      }
+    } finally {
+      setLoadingOverview(false);
+    }
+  }, [session?.access_token, supabaseUrl, anonKey]);
 
   const fetchAllTours = useCallback(async () => {
     if (!session?.access_token) return;
@@ -255,6 +348,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
+            Prefer: "return=representation",
           },
         }
       );
@@ -274,6 +368,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
+            Prefer: "return=representation",
           },
         }
       );
@@ -302,6 +397,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
+            Prefer: "return=representation",
           },
         }
       );
@@ -321,6 +417,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
+            Prefer: "return=representation",
           },
         }
       );
@@ -349,6 +446,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
+            Prefer: "return=representation",
           },
         }
       );
@@ -368,6 +466,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
+            Prefer: "return=representation",
           },
         }
       );
@@ -421,6 +520,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
+            Prefer: "return=representation",
           },
         }
       );
@@ -460,6 +560,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
+            Prefer: "return=representation",
           },
         }
       );
@@ -533,6 +634,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
+            Prefer: "return=representation",
           },
         }
       );
@@ -555,14 +657,14 @@ const AdminDashboard = () => {
   const confirmMarkAllRead = async () => {
     try {
       await axios.patch(
-        `${supabaseUrl}/rest/v1/admin_notifications`,
+        `${supabaseUrl}/rest/v1/admin_notifications?to_admin_id=eq.${user.id}&status=eq.unread`,
         { status: "read" },
         {
-          params: { to_admin_id: `eq.${user.id}`, status: "eq.unread" },
           headers: {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
+            Prefer: "return=representation",
           },
         }
       );
@@ -585,13 +687,15 @@ const AdminDashboard = () => {
 
   const confirmClearAll = async () => {
     try {
-      await axios.delete(`${supabaseUrl}/rest/v1/admin_notifications`, {
-        params: { to_admin_id: `eq.${user.id}` },
-        headers: {
-          apikey: anonKey,
-          Authorization: `Bearer ${session.access_token}`,
-        },
-      });
+      await axios.delete(
+        `${supabaseUrl}/rest/v1/admin_notifications?to_admin_id=eq.${user.id}`,
+        {
+          headers: {
+            apikey: anonKey,
+            Authorization: `Bearer ${session.access_token}`,
+          },
+        }
+      );
       toast.success("Đã xóa tất cả thông báo!");
       setNotifications([]);
     } catch {
@@ -652,12 +756,14 @@ const AdminDashboard = () => {
   };
 
   useEffect(() => {
+    if (activeTab === "overview") fetchOverviewData();
     if (activeTab === "tours") fetchAllTours();
     if (activeTab === "notifications") fetchNotifications();
     if (activeTab === "tickets") fetchTickets();
     if (activeTab === "partners") fetchPartners();
   }, [
     activeTab,
+    fetchOverviewData,
     fetchAllTours,
     fetchNotifications,
     fetchTickets,
@@ -721,9 +827,10 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Tabs – ĐÃ BỎ TAB "Đánh giá" */}
+        {/* Tabs */}
         <div className="ad2-tabs">
           {[
+            { id: "overview", label: "Tổng quan" },
             { id: "tours", label: "Quản lý Tours" },
             {
               id: "notifications",
@@ -731,9 +838,6 @@ const AdminDashboard = () => {
             },
             { id: "tickets", label: "Ticket hỗ trợ" },
             { id: "partners", label: "Đối tác" },
-            { id: "orders", label: "Đơn hàng" },
-            { id: "users", label: "Người dùng" },
-            { id: "vouchers", label: "Voucher & KM" },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -746,6 +850,49 @@ const AdminDashboard = () => {
         </div>
 
         <div className="ad2-content">
+          {/* TAB TỔNG QUAN */}
+          {activeTab === "overview" && (
+            <div className="ad2-table-wrapper">
+              <div className="ad2-table-header">
+                <h3>Tổng quan hệ thống</h3>
+              </div>
+              {loadingOverview ? (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "60px",
+                    color: "#666",
+                  }}
+                >
+                  Đang tải dữ liệu tổng quan...
+                </div>
+              ) : (
+                <div className="ad2-stats-grid">
+                  <div className="ad2-stat-card">
+                    <div className="ad2-stat-icon partners">P</div>
+                    <div className="ad2-stat-value">{totalPartners}</div>
+                    <div className="ad2-stat-label">Số đối tác</div>
+                  </div>
+                  <div className="ad2-stat-card">
+                    <div className="ad2-stat-icon tours">T</div>
+                    <div className="ad2-stat-value">{totalTours}</div>
+                    <div className="ad2-stat-label">Tổng số tour</div>
+                  </div>
+                  <div className="ad2-stat-card">
+                    <div className="ad2-stat-icon reviews">★</div>
+                    <div className="ad2-stat-value">{averageRating}</div>
+                    <div className="ad2-stat-label">Điểm trung bình</div>
+                  </div>
+                  <div className="ad2-stat-card">
+                    <div className="ad2-stat-icon reviews">R</div>
+                    <div className="ad2-stat-value">{totalReviews}</div>
+                    <div className="ad2-stat-label">Tổng số đánh giá</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           {/* TAB TOURS */}
           {activeTab === "tours" && (
             <div className="ad2-table-wrapper">
@@ -1157,26 +1304,6 @@ const AdminDashboard = () => {
                   </tbody>
                 </table>
               )}
-            </div>
-          )}
-
-          {/* Các tab placeholder còn lại – KHÔNG CÓ "reviews" */}
-          {["orders", "users", "vouchers"].includes(activeTab) && (
-            <div className="ad2-table-wrapper">
-              <h3>
-                {activeTab === "orders" && "Đơn hàng"}
-                {activeTab === "users" && "Quản lý người dùng"}
-                {activeTab === "vouchers" && "Voucher & Khuyến mãi"}
-              </h3>
-              <p
-                style={{
-                  textAlign: "center",
-                  padding: "60px 0",
-                  color: "#888",
-                }}
-              >
-                Chưa có dữ liệu
-              </p>
             </div>
           )}
         </div>
