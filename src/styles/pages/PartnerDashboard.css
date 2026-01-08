@@ -124,15 +124,19 @@
 
 .pd-stat-icon.bookings {
   background: #10b981;
+  width: 100px;
 }
 .pd-stat-icon.revenue {
   background: #f59e0b;
+  width: 100px;
 }
 .pd-stat-icon.customers {
   background: #3b82f6;
+  width: 100px;
 }
 .pd-stat-icon.reviews {
   background: #8b5cf6;
+  width: 100px;
 }
 
 .pd-stat-value {

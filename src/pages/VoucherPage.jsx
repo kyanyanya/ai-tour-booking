@@ -16,18 +16,20 @@ const VoucherPage = () => {
   const [vouchers, setVouchers] = useState([]);
   const [userPoints, setUserPoints] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [claiming, setClaiming] = useState({}); // { voucherId: true }
+  const [claiming, setClaiming] = useState({});
 
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
   const accessToken = localStorage.getItem("accessToken");
   const userId = user?.id || localStorage.getItem("userId");
 
-  // Lấy danh sách voucher
   useEffect(() => {
-    const fetchVouchers = async () => {
+    const fetchData = async () => {
       try {
-        const { data } = await axios.get(
+        setLoading(true);
+
+        // 1. Lấy tất cả voucher (giữ nguyên query cũ)
+        const voucherRes = await axios.get(
           `${SUPABASE_URL}/rest/v1/vouchers?select=*,tours(name,tour_code)&order=created_at.desc`,
           {
             headers: {
@@ -38,78 +40,103 @@ const VoucherPage = () => {
         );
 
         const now = new Date();
-        const validVouchers = data.filter((v) => {
+        const validVouchers = voucherRes.data.filter((v) => {
           if (v.start_date && new Date(v.start_date) > now) return false;
           if (v.expires_at && new Date(v.expires_at) < now) return false;
           if (v.total_issued && v.claimed_count >= v.total_issued) return false;
           return true;
         });
 
-        setVouchers(validVouchers);
+        // 2. Lấy tên owner nếu có owner_id
+        const ownerIds = [
+          ...new Set(validVouchers.map((v) => v.owner_id).filter(Boolean)),
+        ];
+
+        let ownerNames = {};
+        if (ownerIds.length > 0) {
+          const usersRes = await axios.get(
+            `${SUPABASE_URL}/rest/v1/users?user_id=in.(${ownerIds.join(
+              ","
+            )})&select=user_id,full_name`,
+            {
+              headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+              },
+            }
+          );
+
+          usersRes.data.forEach((u) => {
+            ownerNames[u.user_id] = u.full_name || "Không xác định";
+          });
+        }
+
+        // 3. Gắn tên vào voucher
+        const enrichedVouchers = validVouchers.map((voucher) => ({
+          ...voucher,
+          owner_full_name: ownerNames[voucher.owner_id] || null,
+        }));
+
+        setVouchers(enrichedVouchers);
       } catch (err) {
-        console.error("Lỗi tải voucher:", err);
-        toast.error("Không thể tải danh sách voucher.");
+        console.error(
+          "Lỗi khi tải dữ liệu:",
+          err.response?.data || err.message
+        );
+        toast.error("Không thể tải voucher. Vui lòng thử lại!");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchVouchers();
+    fetchData();
   }, []);
 
-  // Lấy điểm hiện tại của user
+  // Lấy điểm user (giữ nguyên)
   useEffect(() => {
-    if (user && userId && accessToken) {
-      const fetchUserPoints = async () => {
-        try {
-          const { data } = await axios.get(
-            `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}&select=reward_points`,
-            {
-              headers: {
-                apikey: SUPABASE_ANON_KEY,
-                Authorization: `Bearer ${accessToken}`,
-              },
-            }
-          );
-          if (data && data[0]) {
-            setUserPoints(data[0].reward_points || 0);
+    if (!user || !userId || !accessToken) return;
+
+    const fetchUserPoints = async () => {
+      try {
+        const { data } = await axios.get(
+          `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}&select=reward_points`,
+          {
+            headers: {
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${accessToken}`,
+            },
           }
-        } catch (err) {
-          console.error("Lỗi lấy điểm người dùng:", err);
-        }
-      };
-      fetchUserPoints();
-    }
+        );
+        setUserPoints(data?.[0]?.reward_points || 0);
+      } catch (err) {
+        console.error("Lỗi lấy điểm:", err);
+      }
+    };
+    fetchUserPoints();
   }, [user, userId, accessToken]);
 
-  // Xử lý nhận/mua voucher
+  // Xử lý claim voucher (giữ nguyên, chỉ copy phần cần thiết)
   const handleClaimVoucher = async (voucher) => {
     if (!user) {
-      toast.info("Vui lòng đăng nhập để nhận/mua voucher!");
+      toast.info("Vui lòng đăng nhập!");
       navigate("/login");
       return;
     }
 
-    // Kiểm tra đã nhận/mua chưa (dữ liệu local)
     if (voucher.claimed_by?.includes(userId)) {
-      toast.info("Bạn đã nhận hoặc mua voucher này rồi!");
+      toast.info("Bạn đã nhận/mua voucher này rồi!");
       return;
     }
 
     const pointCost = voucher.point_cost || 0;
-
-    // Kiểm tra đủ điểm chưa
     if (pointCost > 0 && userPoints < pointCost) {
-      toast.error(
-        `Không đủ điểm! Cần ${pointCost} điểm, bạn đang có ${userPoints} điểm.`
-      );
+      toast.error(`Không đủ điểm! Cần ${pointCost}, bạn có ${userPoints}`);
       return;
     }
 
     setClaiming((prev) => ({ ...prev, [voucher.id]: true }));
 
     try {
-      // Gọi RPC để claim voucher và trừ điểm (nếu có)
       await axios.post(
         `${SUPABASE_URL}/rest/v1/rpc/claim_voucher`,
         {
@@ -127,33 +154,21 @@ const VoucherPage = () => {
         }
       );
 
-      // Thành công
       toast.success(
         pointCost > 0
-          ? `Đã mua thành công voucher ${voucher.code}! Đã trừ ${pointCost} điểm.`
-          : `Nhận thành công voucher ${voucher.code} miễn phí!`
+          ? `Mua thành công! Đã trừ ${pointCost} điểm.`
+          : `Nhận miễn phí thành công!`
       );
 
-      // Cập nhật UI
       setVouchers((prev) => prev.filter((v) => v.id !== voucher.id));
-
-      // Cập nhật điểm hiển thị ngay lập tức (vì backend đã trừ)
-      if (pointCost > 0) {
-        setUserPoints((prev) => prev - pointCost);
-      }
+      if (pointCost > 0) setUserPoints((prev) => prev - pointCost);
     } catch (err) {
-      console.error("Lỗi khi claim voucher:", err);
-      const msg = err.response?.data?.message || "Lỗi không xác định";
-
-      if (msg.includes("Không đủ điểm")) {
-        toast.error("Không đủ điểm để mua voucher!");
-      } else if (msg.includes("đã nhận") || msg.includes("đã mua")) {
-        toast.info("Bạn đã nhận/mua voucher này rồi!");
-      } else if (msg.includes("hết lượt")) {
-        toast.error("Voucher đã hết lượt!");
-      } else {
-        toast.error("Không thể nhận/mua voucher. Vui lòng thử lại!");
-      }
+      const msg = err.response?.data?.message || "";
+      if (msg.includes("Không đủ điểm")) toast.error("Không đủ điểm!");
+      else if (msg.includes("đã nhận") || msg.includes("đã mua"))
+        toast.info("Đã nhận/mua rồi!");
+      else if (msg.includes("hết lượt")) toast.error("Hết voucher!");
+      else toast.error("Lỗi xảy ra, thử lại sau!");
     } finally {
       setClaiming((prev) => ({ ...prev, [voucher.id]: false }));
     }
@@ -164,7 +179,6 @@ const VoucherPage = () => {
       style: "currency",
       currency: "VND",
     }).format(price);
-
   const formatDate = (date) =>
     !date
       ? "Không giới hạn"
@@ -181,7 +195,6 @@ const VoucherPage = () => {
         <div className="voucher-page-wrapper">
           <h1 className="voucher-page-title">Mã Giảm Giá & Ưu Đãi</h1>
 
-          {/* Hiển thị điểm hiện tại */}
           {user && (
             <div className="user-points-display">
               <strong>Điểm của bạn:</strong>{" "}
@@ -193,30 +206,27 @@ const VoucherPage = () => {
 
           <p className="voucher-page-subtitle">
             {user
-              ? "Nhận voucher miễn phí hoặc dùng điểm để mua voucher đặc biệt!"
+              ? "Nhận voucher miễn phí hoặc dùng điểm để mua!"
               : "Đăng nhập để nhận ưu đãi!"}
           </p>
 
           {loading ? (
-            <div className="voucher-loading">Đang tải voucher...</div>
+            <div className="voucher-loading">Đang tải...</div>
           ) : vouchers.length === 0 ? (
             <div className="voucher-no-data">
-              <p>Hiện tại chưa có voucher nào khả dụng.</p>
-              <p>Hãy quay lại sau nhé!</p>
+              <p>Chưa có voucher nào khả dụng.</p>
             </div>
           ) : (
             <div className="voucher-grid">
               {vouchers.map((voucher) => {
                 const pointCost = voucher.point_cost || 0;
                 const isFree = pointCost === 0;
-                const hasEnoughPoints = userPoints >= pointCost;
-                const alreadyClaimed = voucher.claimed_by?.includes(userId);
-                const isClaiming = claiming[voucher.id];
+                const hasEnough = userPoints >= pointCost;
+                const claimed = voucher.claimed_by?.includes(userId);
+                const claimingNow = claiming[voucher.id];
 
-                const isDisabled =
-                  isClaiming ||
-                  alreadyClaimed ||
-                  (pointCost > 0 && !hasEnoughPoints);
+                const disabled =
+                  claimingNow || claimed || (!isFree && !hasEnough);
 
                 const remaining = voucher.total_issued
                   ? voucher.total_issued - (voucher.claimed_count || 0)
@@ -235,32 +245,29 @@ const VoucherPage = () => {
                       <p>
                         <strong>Chi phí:</strong>{" "}
                         {isFree ? (
-                          <span style={{ color: "#27ae60", fontWeight: "700" }}>
-                            Miễn phí
-                          </span>
+                          <span style={{ color: "#27ae60" }}>Miễn phí</span>
                         ) : (
-                          <span
-                            style={{
-                              color: hasEnoughPoints ? "#e67e22" : "#e74c3c",
-                              fontWeight: "700",
-                            }}
-                          >
-                            {pointCost} điểm {!hasEnoughPoints && "(không đủ)"}
-                          </span>
+                          `${pointCost} điểm ${!hasEnough ? "(không đủ)" : ""}`
                         )}
                       </p>
 
-                      {voucher.tour_id ? (
+                      <p>
+                        <strong>Áp dụng:</strong>{" "}
+                        {voucher.tour_id
+                          ? voucher.tours?.name || "Tour cụ thể"
+                          : "Tất cả tour"}
+                      </p>
+
+                      {voucher.owner_full_name ? (
                         <p>
-                          <strong>Áp dụng:</strong>{" "}
-                          {voucher.tours?.tour_code
-                            ? `[${voucher.tours.tour_code}] `
-                            : ""}
-                          {voucher.tours?.name || "Tour cụ thể"}
+                          <strong>Đối tác tạo:</strong>{" "}
+                          <span style={{ color: "#4361ee", fontWeight: 600 }}>
+                            {voucher.owner_full_name}
+                          </span>
                         </p>
                       ) : (
                         <p>
-                          <strong>Áp dụng:</strong> Tất cả tour
+                          <strong>Đối tác tạo:</strong> Hệ thống
                         </p>
                       )}
 
@@ -275,7 +282,7 @@ const VoucherPage = () => {
 
                       {remaining !== null && (
                         <p>
-                          <strong>Số lượng còn lại:</strong>{" "}
+                          <strong>Còn lại:</strong>{" "}
                           <span
                             className={
                               remaining <= 5 ? "voucher-low-stock" : ""
@@ -291,15 +298,15 @@ const VoucherPage = () => {
                       <button
                         className="voucher-claim-btn"
                         onClick={() => handleClaimVoucher(voucher)}
-                        disabled={isDisabled}
+                        disabled={disabled}
                       >
-                        {isClaiming
+                        {claimingNow
                           ? "Đang xử lý..."
-                          : alreadyClaimed
-                          ? "Đã nhận/mua"
+                          : claimed
+                          ? "Đã nhận"
                           : isFree
                           ? "Nhận miễn phí"
-                          : hasEnoughPoints
+                          : hasEnough
                           ? "Mua bằng điểm"
                           : "Không đủ điểm"}
                       </button>

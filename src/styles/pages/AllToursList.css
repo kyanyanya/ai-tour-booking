@@ -93,6 +93,73 @@
   grid-column: 1 / -1;
 }
 
+/* ==============================
+   PAGINATION
+   ============================== */
+
+.atl-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 10px;
+  margin-top: 50px;
+  flex-wrap: wrap;
+}
+
+.atl-page-btn {
+  padding: 10px 16px;
+  border: 1.5px solid #cce0ff;
+  background: white;
+  color: #333;
+  border-radius: 10px;
+  font-size: 1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  min-width: 48px;
+}
+
+.atl-page-btn:hover:not(:disabled) {
+  background: #007bff;
+  color: white;
+  border-color: #007bff;
+}
+
+.atl-page-btn.active {
+  background: #007bff;
+  color: white;
+  border-color: #007bff;
+  font-weight: 600;
+}
+
+.atl-page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f0f0f0;
+}
+
+.atl-page-dots {
+  padding: 10px 16px;
+  color: #888;
+  font-size: 1.1rem;
+}
+
+/* Loading style (tùy chọn cải thiện) */
+.atl-loading {
+  text-align: center;
+  padding: 80px;
+  color: #666;
+  font-size: 1.2rem;
+}
+
+/* Nút Đầu và Cuối hơi rộng hơn một chút cho dễ đọc */
+.atl-page-first-last {
+  min-width: 80px;
+}
+
+/* Optional: làm cho nút Trước/Sau dùng ký tự mảnh hơn */
+.atl-page-btn:not(.atl-page-first-last) {
+  font-weight: 500;
+}
 /* RESPONSIVE */
 @media (max-width: 1200px) {
   .atl-grid {
