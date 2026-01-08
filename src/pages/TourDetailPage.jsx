@@ -14,9 +14,10 @@ const TourDetailPage = () => {
   const { user, session } = useAuth();
 
   const [tour, setTour] = useState(null);
+  const [reviews, setReviews] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Modal booking - đơn giản như cũ
+  // Modal booking
   const [showBookingModal, setShowBookingModal] = useState(false);
   const [bookingDate, setBookingDate] = useState("");
   const [numberOfPeople, setNumberOfPeople] = useState(1);
@@ -50,12 +51,33 @@ const TourDetailPage = () => {
         console.error("Lỗi tải chi tiết tour:", err);
         toast.error("Không thể tải thông tin tour!");
         navigate("/tours");
+      }
+    };
+
+    const fetchReviews = async () => {
+      try {
+        // Join với bảng users để lấy tên người đánh giá
+        const { data } = await axios.get(
+          `${supabaseUrl}/rest/v1/reviews?tour_id=eq.${id}&select=*,users(full_name)&order=created_at.desc`,
+          {
+            headers: {
+              apikey: anonKey,
+              Authorization: `Bearer ${anonKey}`,
+            },
+          }
+        );
+        setReviews(data || []);
+      } catch (err) {
+        console.error("Lỗi tải đánh giá:", err);
       } finally {
         setLoading(false);
       }
     };
 
-    if (id) fetchTourDetail();
+    if (id) {
+      fetchTourDetail();
+      fetchReviews();
+    }
   }, [id, supabaseUrl, anonKey, navigate]);
 
   const formatPrice = (price) => {
@@ -70,6 +92,8 @@ const TourDetailPage = () => {
       year: "numeric",
       month: "long",
       day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
     });
   };
 
@@ -168,7 +192,6 @@ const TourDetailPage = () => {
           total_price: totalPrice,
           status: "pending",
           payment_status: "unpaid",
-          // Không gửi contact_name và contact_phone → sẽ cập nhật ở trang checkout sau
         },
         {
           headers: {
@@ -456,9 +479,45 @@ const TourDetailPage = () => {
               </div>
             </div>
           </div>
+
+          {/* Section Đánh giá - ĐÃ CẬP NHẬT HIỂN THỊ TÊN NGƯỜI DÙNG */}
+          <div className="tdp-section">
+            <h2 className="tdp-section-title">
+              Đánh giá từ khách hàng ({reviews.length})
+            </h2>
+            {reviews.length === 0 ? (
+              <p className="tdp-no-data">Chưa có đánh giá nào cho tour này.</p>
+            ) : (
+              <div className="tdp-reviews-list">
+                {reviews.map((review) => {
+                  const reviewerName =
+                    review.users?.full_name || "Khách hàng ẩn danh";
+                  return (
+                    <div key={review.id} className="tdp-review-item">
+                      <div className="tdp-review-header">
+                        <strong className="tdp-reviewer-name">
+                          {reviewerName}
+                        </strong>
+                        <div className="tdp-review-rating">
+                          {"★".repeat(review.rating) +
+                            "☆".repeat(5 - review.rating)}
+                        </div>
+                      </div>
+                      <p className="tdp-review-comment">
+                        {review.comment || "Không có bình luận"}
+                      </p>
+                      <small className="tdp-review-date">
+                        {formatDate(review.created_at)}
+                      </small>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* Modal đặt tour - đơn giản như cũ */}
+        {/* Modal đặt tour */}
         {showBookingModal && (
           <div
             className="tdp-modal-overlay"

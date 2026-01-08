@@ -18,11 +18,11 @@ const AllToursList = () => {
     const fetchApprovedTours = async () => {
       try {
         const { data } = await axios.get(
-          `${supabaseUrl}/rest/v1/tours?status=eq.APPROVED&order=created_at.desc`,
+          `${supabaseUrl}/rest/v1/tours?status=eq.APPROVED&select=*,average_rating,review_count&order=created_at.desc`,
           {
             headers: {
               apikey: anonKey,
-              Authorization: `Bearer ${anonKey}`, // public access
+              Authorization: `Bearer ${anonKey}`,
             },
           }
         );
