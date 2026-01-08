@@ -18,6 +18,8 @@ import Checkout from "./pages/Checkout";
 import PaymentResult from "./pages/PaymentResult";
 import VoucherPage from "./pages/VoucherPage";
 
+import Chatbot from "./components/Chatbot.jsx";
+
 function App() {
   return (
     <AuthProvider>
@@ -37,6 +39,9 @@ function App() {
           <Route path="/checkout/result" element={<PaymentResult />} />
           <Route path="/vouchers" element={<VoucherPage />} />
         </Routes>
+
+        {/* Chatbot */}
+        <Chatbot />
 
         {/* TOAST CONTAINER */}
         <ToastContainer
