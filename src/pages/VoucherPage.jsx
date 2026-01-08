@@ -17,18 +17,20 @@ const VoucherPage = () => {
   const [userPoints, setUserPoints] = useState(0);
   const [loading, setLoading] = useState(true);
   const [claiming, setClaiming] = useState({});
+  const [usedVoucherCodes, setUsedVoucherCodes] = useState([]); // Danh sách code đã mua/dùng
 
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
   const accessToken = localStorage.getItem("accessToken");
   const userId = user?.id || localStorage.getItem("userId");
 
+  // Lấy voucher + tên owner + danh sách voucher_codes của user
   useEffect(() => {
     const fetchData = async () => {
       try {
         setLoading(true);
 
-        // 1. Lấy tất cả voucher (giữ nguyên query cũ)
+        // 1. Lấy voucher khả dụng
         const voucherRes = await axios.get(
           `${SUPABASE_URL}/rest/v1/vouchers?select=*,tours(name,tour_code)&order=created_at.desc`,
           {
@@ -47,11 +49,10 @@ const VoucherPage = () => {
           return true;
         });
 
-        // 2. Lấy tên owner nếu có owner_id
+        // 2. Lấy tên owner
         const ownerIds = [
           ...new Set(validVouchers.map((v) => v.owner_id).filter(Boolean)),
         ];
-
         let ownerNames = {};
         if (ownerIds.length > 0) {
           const usersRes = await axios.get(
@@ -65,34 +66,47 @@ const VoucherPage = () => {
               },
             }
           );
-
           usersRes.data.forEach((u) => {
             ownerNames[u.user_id] = u.full_name || "Không xác định";
           });
         }
 
-        // 3. Gắn tên vào voucher
-        const enrichedVouchers = validVouchers.map((voucher) => ({
-          ...voucher,
-          owner_full_name: ownerNames[voucher.owner_id] || null,
-        }));
+        // 3. Lấy danh sách voucher_codes của user hiện tại
+        const { data: userProfile } = await axios.get(
+          `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}&select=voucher_codes`,
+          {
+            headers: {
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${accessToken}`,
+            },
+          }
+        );
+        const userVoucherCodes = userProfile?.[0]?.voucher_codes || [];
+        setUsedVoucherCodes(userVoucherCodes);
+
+        // 4. Gắn tên owner + lọc voucher chưa dùng
+        const enrichedVouchers = validVouchers
+          .filter((v) => !userVoucherCodes.includes(v.code)) // Không hiển thị voucher đã mua/dùng
+          .map((voucher) => ({
+            ...voucher,
+            owner_full_name: ownerNames[voucher.owner_id] || null,
+          }));
 
         setVouchers(enrichedVouchers);
       } catch (err) {
-        console.error(
-          "Lỗi khi tải dữ liệu:",
-          err.response?.data || err.message
-        );
+        console.error("Lỗi tải dữ liệu:", err.response?.data || err.message);
         toast.error("Không thể tải voucher. Vui lòng thử lại!");
       } finally {
         setLoading(false);
       }
     };
 
-    fetchData();
-  }, []);
+    if (userId && accessToken) {
+      fetchData();
+    }
+  }, [userId, accessToken]);
 
-  // Lấy điểm user (giữ nguyên)
+  // Lấy điểm user
   useEffect(() => {
     if (!user || !userId || !accessToken) return;
 
@@ -115,7 +129,7 @@ const VoucherPage = () => {
     fetchUserPoints();
   }, [user, userId, accessToken]);
 
-  // Xử lý claim voucher (giữ nguyên, chỉ copy phần cần thiết)
+  // Xử lý claim/mua voucher + thêm code vào voucher_codes
   const handleClaimVoucher = async (voucher) => {
     if (!user) {
       toast.info("Vui lòng đăng nhập!");
@@ -128,6 +142,12 @@ const VoucherPage = () => {
       return;
     }
 
+    // Kiểm tra thêm: nếu code đã có trong voucher_codes → chặn
+    if (usedVoucherCodes.includes(voucher.code)) {
+      toast.info("Bạn đã từng sử dụng/mua voucher này trước đây!");
+      return;
+    }
+
     const pointCost = voucher.point_cost || 0;
     if (pointCost > 0 && userPoints < pointCost) {
       toast.error(`Không đủ điểm! Cần ${pointCost}, bạn có ${userPoints}`);
@@ -137,6 +157,7 @@ const VoucherPage = () => {
     setClaiming((prev) => ({ ...prev, [voucher.id]: true }));
 
     try {
+      // Claim voucher qua RPC
       await axios.post(
         `${SUPABASE_URL}/rest/v1/rpc/claim_voucher`,
         {
@@ -154,20 +175,40 @@ const VoucherPage = () => {
         }
       );
 
+      // Thêm code voucher vào mảng voucher_codes của user
+      const updatedCodes = [...usedVoucherCodes, voucher.code];
+
+      await axios.patch(
+        `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}`,
+        { voucher_codes: updatedCodes },
+        {
+          headers: {
+            apikey: SUPABASE_ANON_KEY,
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+            Prefer: "return=minimal",
+          },
+        }
+      );
+
+      // Cập nhật state local
+      setUsedVoucherCodes(updatedCodes);
+
       toast.success(
         pointCost > 0
           ? `Mua thành công! Đã trừ ${pointCost} điểm.`
           : `Nhận miễn phí thành công!`
       );
 
+      // Cập nhật UI (xóa voucher khỏi danh sách)
       setVouchers((prev) => prev.filter((v) => v.id !== voucher.id));
       if (pointCost > 0) setUserPoints((prev) => prev - pointCost);
     } catch (err) {
       const msg = err.response?.data?.message || "";
       if (msg.includes("Không đủ điểm")) toast.error("Không đủ điểm!");
       else if (msg.includes("đã nhận") || msg.includes("đã mua"))
-        toast.info("Đã nhận/mua rồi!");
-      else if (msg.includes("hết lượt")) toast.error("Hết voucher!");
+        toast.info("Bạn đã nhận/mua voucher này rồi!");
+      else if (msg.includes("hết lượt")) toast.error("Voucher đã hết lượt!");
       else toast.error("Lỗi xảy ra, thử lại sau!");
     } finally {
       setClaiming((prev) => ({ ...prev, [voucher.id]: false }));
@@ -179,6 +220,7 @@ const VoucherPage = () => {
       style: "currency",
       currency: "VND",
     }).format(price);
+
   const formatDate = (date) =>
     !date
       ? "Không giới hạn"
@@ -214,7 +256,7 @@ const VoucherPage = () => {
             <div className="voucher-loading">Đang tải...</div>
           ) : vouchers.length === 0 ? (
             <div className="voucher-no-data">
-              <p>Chưa có voucher nào khả dụng.</p>
+              <p>Hiện tại chưa có voucher nào khả dụng hoặc bạn đã dùng hết.</p>
             </div>
           ) : (
             <div className="voucher-grid">

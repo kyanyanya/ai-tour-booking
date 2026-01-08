@@ -1,5 +1,5 @@
 // src/pages/PaymentResult.jsx
-import React, { useEffect, useState, useRef } from "react"; // ← Thêm useRef
+import React, { useEffect, useState, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import axios from "axios";
 import Header from "../components/Header";
@@ -11,24 +11,23 @@ const PaymentResult = () => {
   const navigate = useNavigate();
   const [status, setStatus] = useState("loading");
 
-  const hasProcessed = useRef(false); // ← Cờ kiểm tra đã xử lý
+  const hasProcessed = useRef(false);
 
   const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
   const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
 
   const calculateRewardPoints = (totalAmountVND) => {
     let percent = 0;
-    if (totalAmountVND <= 3_000_000) percent = 0.05;
-    else if (totalAmountVND <= 5_000_000) percent = 0.07;
-    else if (totalAmountVND <= 10_000_000) percent = 0.085;
+    if (totalAmountVND <= 3000000) percent = 0.05;
+    else if (totalAmountVND <= 5000000) percent = 0.07;
+    else if (totalAmountVND <= 10000000) percent = 0.085;
     else percent = 0.1;
 
     return Math.floor((totalAmountVND * percent) / 1000);
   };
 
   useEffect(() => {
-    const handlePaymentBack = async () => {
-      // ← NGĂN CHẠY LẦN 2 (do React Strict Mode)
+    const handlePaymentResult = async () => {
       if (hasProcessed.current) return;
       hasProcessed.current = true;
 
@@ -49,25 +48,70 @@ const PaymentResult = () => {
         return;
       }
 
-      if (responseCode === "00" && bookingId && vnpAmount) {
-        let pointsEarned = 0;
-        let voucherUsedMessage = "";
+      if (responseCode !== "00" || !bookingId || !vnpAmount) {
+        toast.error("Thanh toán không thành công hoặc đã bị hủy.");
+        setStatus("error");
+        return;
+      }
 
-        try {
-          const totalPrice = parseInt(vnpAmount, 10) / 100;
+      let pointsEarned = 0;
+      let voucherMessage = "";
 
-          // 1. Cập nhật booking
-          await axios.patch(
-            `${SUPABASE_URL}/rest/v1/bookings?id=eq.${bookingId}`,
-            {
-              payment_status: "paid",
-              status: "confirmed",
-              transaction_id: transactionNo,
-              payment_method: "vnpay",
-              updated_at: new Date().toISOString(),
-              used_points: usedPoints > 0 ? usedPoints : null,
-              used_voucher: usedVoucherCode,
+      try {
+        const totalPrice = parseInt(vnpAmount, 10) / 100;
+
+        // 1. Cập nhật booking
+        await axios.patch(
+          `${SUPABASE_URL}/rest/v1/bookings?id=eq.${bookingId}`,
+          {
+            payment_status: "paid",
+            status: "confirmed",
+            transaction_id: transactionNo,
+            payment_method: "vnpay",
+            updated_at: new Date().toISOString(),
+            used_points: usedPoints > 0 ? usedPoints : null,
+            used_voucher: usedVoucherCode,
+          },
+          {
+            headers: {
+              apikey: SUPABASE_ANON_KEY,
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+              Prefer: "return=minimal",
             },
+          }
+        );
+
+        // 2. Xử lý điểm thưởng
+        if (usedPoints > 0 || totalPrice > 0) {
+          const { data: userData } = await axios.get(
+            `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}&select=reward_points`,
+            {
+              headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${accessToken}`,
+              },
+            }
+          );
+
+          if (!userData?.length) throw new Error("Không tìm thấy user");
+
+          let currentPoints = userData[0].reward_points || 0;
+
+          if (usedPoints > 0) {
+            if (currentPoints < usedPoints) {
+              usedPoints = currentPoints;
+              toast.warn("Điểm sử dụng vượt quá, chỉ trừ hết điểm hiện có.");
+            }
+            currentPoints -= usedPoints;
+          }
+
+          pointsEarned = calculateRewardPoints(totalPrice);
+          if (pointsEarned > 0) currentPoints += pointsEarned;
+
+          await axios.patch(
+            `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}`,
+            { reward_points: currentPoints },
             {
               headers: {
                 apikey: SUPABASE_ANON_KEY,
@@ -77,40 +121,34 @@ const PaymentResult = () => {
               },
             }
           );
+        }
 
-          // 2. Xử lý điểm thưởng
-          if (usedPoints > 0 || totalPrice > 0) {
-            const { data: userData } = await axios.get(
-              `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}&select=reward_points`,
-              {
-                headers: {
-                  apikey: SUPABASE_ANON_KEY,
-                  Authorization: `Bearer ${accessToken}`,
-                },
-              }
-            );
-
-            if (!userData || userData.length === 0)
-              throw new Error("Không tìm thấy người dùng");
-
-            let currentPoints = userData[0].reward_points || 0;
-
-            if (usedPoints > 0) {
-              if (currentPoints < usedPoints) {
-                toast.warn(
-                  "Số điểm sử dụng lớn hơn điểm hiện có. Chỉ trừ điểm hiện có."
-                );
-                usedPoints = currentPoints;
-              }
-              currentPoints -= usedPoints;
+        // 3. Xóa userId khỏi claimed_by của voucher (đúng logic bạn muốn)
+        if (usedVoucherCode) {
+          // Tìm voucher
+          const { data: voucherData } = await axios.get(
+            `${SUPABASE_URL}/rest/v1/vouchers?code=eq.${encodeURIComponent(
+              usedVoucherCode
+            )}&select=id,claimed_by`,
+            {
+              headers: {
+                apikey: SUPABASE_ANON_KEY,
+                Authorization: `Bearer ${accessToken}`,
+              },
             }
+          );
 
-            pointsEarned = calculateRewardPoints(totalPrice);
-            if (pointsEarned > 0) currentPoints += pointsEarned;
+          if (voucherData?.length > 0) {
+            const voucher = voucherData[0];
+            const currentClaimed = voucher.claimed_by || [];
 
+            // Xóa userId khỏi mảng
+            const updatedClaimed = currentClaimed.filter((id) => id !== userId);
+
+            // Cập nhật lại
             await axios.patch(
-              `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}`,
-              { reward_points: currentPoints },
+              `${SUPABASE_URL}/rest/v1/vouchers?id=eq.${voucher.id}`,
+              { claimed_by: updatedClaimed },
               {
                 headers: {
                   apikey: SUPABASE_ANON_KEY,
@@ -120,74 +158,29 @@ const PaymentResult = () => {
                 },
               }
             );
+
+            voucherMessage = `Voucher ${usedVoucherCode} đã được sử dụng và xóa khỏi danh sách của bạn.`;
           }
-
-          // 3. Xử lý voucher đã dùng
-          if (usedVoucherCode) {
-            try {
-              const { data: userData } = await axios.get(
-                `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}&select=voucher_codes`,
-                {
-                  headers: {
-                    apikey: SUPABASE_ANON_KEY,
-                    Authorization: `Bearer ${accessToken}`,
-                  },
-                }
-              );
-
-              if (userData && userData.length > 0) {
-                const currentCodes = userData[0].voucher_codes || [];
-                const updatedCodes = currentCodes.filter(
-                  (code) => code !== usedVoucherCode
-                );
-
-                await axios.patch(
-                  `${SUPABASE_URL}/rest/v1/users?user_id=eq.${userId}`,
-                  { voucher_codes: updatedCodes },
-                  {
-                    headers: {
-                      apikey: SUPABASE_ANON_KEY,
-                      Authorization: `Bearer ${accessToken}`,
-                      "Content-Type": "application/json",
-                    },
-                  }
-                );
-
-                voucherUsedMessage = `Voucher ${usedVoucherCode} đã được sử dụng và xóa khỏi danh sách.`;
-              }
-            } catch (voucherErr) {
-              console.error("Lỗi xóa voucher:", voucherErr);
-              voucherUsedMessage = "Không thể xóa voucher đã dùng.";
-            }
-          }
-        } catch (err) {
-          console.error("Lỗi xử lý thanh toán:", err);
-          toast.error("Có lỗi khi xử lý đơn hàng. Vui lòng liên hệ hỗ trợ.");
-          setStatus("success");
-          return;
         }
 
-        // === HIỆN THÔNG BÁO THÀNH CÔNG CHỈ 1 LẦN ===
-        let mainMessage = "Bạn đã thanh toán thành công!";
-        if (voucherUsedMessage) {
-          mainMessage += ` ${voucherUsedMessage}`;
-        }
-        toast.success(mainMessage);
-
+        // Thông báo
+        toast.success("Thanh toán thành công! Đơn hàng đã xác nhận.");
+        if (voucherMessage) toast.success(voucherMessage);
         if (pointsEarned > 0) {
           toast.success(
-            `Bạn được cộng thêm ${pointsEarned.toLocaleString()} điểm tích lũy! 🎉`
+            `Nhận thêm ${pointsEarned.toLocaleString()} điểm thưởng! 🎉`
           );
         }
 
         setStatus("success");
-      } else {
-        toast.error("Thanh toán không thành công hoặc đã bị hủy.");
+      } catch (err) {
+        console.error("Lỗi xử lý:", err);
+        toast.error("Lỗi xử lý đơn hàng. Vui lòng liên hệ hỗ trợ.");
         setStatus("error");
       }
     };
 
-    handlePaymentBack();
+    handlePaymentResult();
   }, [searchParams, SUPABASE_URL, SUPABASE_ANON_KEY, navigate]);
 
   return (
@@ -206,21 +199,21 @@ const PaymentResult = () => {
           <div>
             <h1 style={{ color: "#2ecc71", fontSize: "3rem" }}>✓</h1>
             <h2 style={{ color: "#2ecc71" }}>Thanh toán thành công!</h2>
-            <p>Đơn hàng đã được ghi nhận và xử lý thành công.</p>
+            <p>Đơn hàng đã được ghi nhận và xử lý hoàn tất.</p>
+            <p>Chúc bạn có chuyến đi vui vẻ!</p>
             <button
               onClick={() => navigate("/customer")}
               style={{
-                padding: "10px 25px",
-                marginTop: "20px",
-                cursor: "pointer",
+                padding: "12px 28px",
+                marginTop: "24px",
                 background: "#007bff",
                 color: "white",
                 border: "none",
-                borderRadius: "5px",
-                fontSize: "1rem",
+                borderRadius: "6px",
+                fontSize: "1.1rem",
               }}
             >
-              Quản lý chuyến đi
+              Xem đơn hàng của tôi
             </button>
           </div>
         )}
@@ -233,17 +226,16 @@ const PaymentResult = () => {
             <button
               onClick={() => navigate("/checkout")}
               style={{
-                padding: "10px 25px",
-                marginTop: "20px",
-                cursor: "pointer",
+                padding: "12px 28px",
+                marginTop: "24px",
                 background: "#6c757d",
                 color: "white",
                 border: "none",
-                borderRadius: "5px",
-                fontSize: "1rem",
+                borderRadius: "6px",
+                fontSize: "1.1rem",
               }}
             >
-              Quay lại thanh toán
+              Thử thanh toán lại
             </button>
           </div>
         )}
