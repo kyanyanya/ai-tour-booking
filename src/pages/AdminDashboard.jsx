@@ -120,7 +120,7 @@ const AdminDashboard = () => {
               apikey: anonKey,
               Authorization: `Bearer ${session.access_token}`,
               "Content-Type": "application/json",
-              Prefer: "return=representation",
+              Prefer: "return=minimal",
             },
           }
         );
@@ -368,7 +368,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
-            Prefer: "return=representation",
+            Prefer: "return=minimal",
           },
         }
       );
@@ -417,7 +417,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
-            Prefer: "return=representation",
+            Prefer: "return=minimal",
           },
         }
       );
@@ -466,7 +466,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
-            Prefer: "return=representation",
+            Prefer: "return=minimal",
           },
         }
       );
@@ -634,7 +634,7 @@ const AdminDashboard = () => {
             apikey: anonKey,
             Authorization: `Bearer ${session.access_token}`,
             "Content-Type": "application/json",
-            Prefer: "return=representation",
+            Prefer: "return=minimal",
           },
         }
       );
