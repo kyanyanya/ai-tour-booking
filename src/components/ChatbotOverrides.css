@@ -1,16 +1,25 @@
 .n8n-chat-widget-window {
+    width: 200px !important;
 
-    width: 340px !important;
+    height: 300px !important;
 
-    height: 500px !important;
-    max-height: 70vh !important;
+    max-height: 80vh !important;
+    border-radius: 16px !important;
 
-
-    border-radius: 12px !important;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15) !important;
+    overflow: hidden !important;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2) !important;
 }
 
+
+.n8n-chat-widget-header {
+    display: none !important;
+}
+
+
 .n8n-chat-widget-toggle-button {
-    bottom: 20px !important;
-    right: 20px !important;
+    background-color: #8233ff !important;
+    width: 50px !important;
+    height: 50px !important;
+    bottom: 30px !important;
+    right: 30px !important;
 }
