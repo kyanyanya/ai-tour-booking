@@ -1,36 +1,25 @@
-/* src/components/ChatbotOverrides.css */
 .n8n-chat-widget-window {
     width: 200px !important;
-    /* Độ rộng vừa phải */
+
     height: 300px !important;
-    /* Giảm chiều cao xuống */
+
     max-height: 80vh !important;
     border-radius: 16px !important;
-    /* Bo góc tròn theo thẻ tour */
+
     overflow: hidden !important;
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2) !important;
 }
 
-/* Chỉnh màu tiêu đề và căn lề */
+
 .n8n-chat-widget-header {
     display: none !important;
 }
 
-/* Tím đồng nhất banner */
 
-
-/* Nút bấm tròn thu nhỏ lại 1 chút */
 .n8n-chat-widget-toggle-button {
     background-color: #8233ff !important;
     width: 50px !important;
     height: 50px !important;
     bottom: 30px !important;
     right: 30px !important;
-}
-
-/* src/components/ChatbotOverrides.css */
-
-/* Ẩn hoàn toàn phần header màu đen */
-.n8n-chat-widget-header {
-    display: none !important;
 }
